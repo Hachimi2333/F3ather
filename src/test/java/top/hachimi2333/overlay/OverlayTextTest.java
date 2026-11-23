@@ -1,4 +1,4 @@
-package io.github.hachimi2333.f3ather.overlay;
+package top.hachimi2333.overlay;
 
 import org.junit.jupiter.api.Test;
 
@@ -6,9 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.hachimi2333.f3ather.overlay.OverlaySettings.BuiltIn;
-import static io.github.hachimi2333.f3ather.overlay.OverlaySettings.Preset;
-import static io.github.hachimi2333.f3ather.overlay.OverlaySettings.Refresh;
+import static top.hachimi2333.overlay.OverlaySettings.BuiltIn;
+import static top.hachimi2333.overlay.OverlaySettings.Preset;
+import static top.hachimi2333.overlay.OverlaySettings.Refresh;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;

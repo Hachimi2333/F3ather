@@ -1,4 +1,4 @@
-package io.github.hachimi2333.f3ather.overlay;
+package top.hachimi2333.overlay;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;

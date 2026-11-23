@@ -1,9 +1,9 @@
-package io.github.hachimi2333.f3ather;
+package top.hachimi2333;
 
-import io.github.hachimi2333.f3ather.config.ClientConfig;
-import io.github.hachimi2333.f3ather.config.F3atherScreen;
-import io.github.hachimi2333.f3ather.overlay.AddonEntries;
-import io.github.hachimi2333.f3ather.overlay.OverlaySettings;
+import top.hachimi2333.config.ClientConfig;
+import top.hachimi2333.config.F3atherScreen;
+import top.hachimi2333.overlay.AddonEntries;
+import top.hachimi2333.overlay.OverlaySettings;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;

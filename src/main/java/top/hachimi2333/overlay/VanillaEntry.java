@@ -1,10 +1,10 @@
-package io.github.hachimi2333.f3ather.overlay;
+package top.hachimi2333.overlay;
 
 import java.util.Locale;
 
-import static io.github.hachimi2333.f3ather.overlay.OverlaySettings.BuiltIn.COMMON;
-import static io.github.hachimi2333.f3ather.overlay.OverlaySettings.BuiltIn.LIGHT;
-import static io.github.hachimi2333.f3ather.overlay.OverlaySettings.BuiltIn.ORIGINAL;
+import static top.hachimi2333.overlay.OverlaySettings.BuiltIn.COMMON;
+import static top.hachimi2333.overlay.OverlaySettings.BuiltIn.LIGHT;
+import static top.hachimi2333.overlay.OverlaySettings.BuiltIn.ORIGINAL;
 
 public enum VanillaEntry {
     FPS(LIGHT),

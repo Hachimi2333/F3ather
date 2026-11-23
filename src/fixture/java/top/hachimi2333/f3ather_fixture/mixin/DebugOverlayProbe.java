@@ -1,6 +1,6 @@
-package io.github.hachimi2333.f3ather_fixture.mixin;
+package top.hachimi2333.f3ather_fixture.mixin;
 
-import io.github.hachimi2333.f3ather_fixture.FixtureClient;
+import top.hachimi2333.f3ather_fixture.FixtureClient;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.DebugScreenOverlay;
 import org.spongepowered.asm.mixin.Mixin;

@@ -1,4 +1,4 @@
-package io.github.hachimi2333.f3ather_fixture;
+package top.hachimi2333.f3ather_fixture;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;

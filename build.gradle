@@ -3,7 +3,7 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.148'
 }
 
-group = 'io.github.hachimi2333.f3ather'
+group = 'top.hachimi2333'
 version = modVersion
 
 base {

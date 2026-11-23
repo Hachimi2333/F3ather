@@ -1,9 +1,9 @@
-package io.github.hachimi2333.f3ather.mixin;
+package top.hachimi2333.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
-import io.github.hachimi2333.f3ather.F3ather;
-import io.github.hachimi2333.f3ather.overlay.OverlayCache;
+import top.hachimi2333.F3ather;
+import top.hachimi2333.overlay.OverlayCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.DebugScreenOverlay;

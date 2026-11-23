@@ -1,11 +1,11 @@
-package io.github.hachimi2333.f3ather.config;
+package top.hachimi2333.config;
 
-import io.github.hachimi2333.f3ather.overlay.AddonEntries;
-import io.github.hachimi2333.f3ather.overlay.OverlaySettings;
-import io.github.hachimi2333.f3ather.overlay.OverlaySettings.BuiltIn;
-import io.github.hachimi2333.f3ather.overlay.OverlaySettings.Preset;
-import io.github.hachimi2333.f3ather.overlay.OverlaySettings.Refresh;
-import io.github.hachimi2333.f3ather.overlay.VanillaEntry;
+import top.hachimi2333.overlay.AddonEntries;
+import top.hachimi2333.overlay.OverlaySettings;
+import top.hachimi2333.overlay.OverlaySettings.BuiltIn;
+import top.hachimi2333.overlay.OverlaySettings.Preset;
+import top.hachimi2333.overlay.OverlaySettings.Refresh;
+import top.hachimi2333.overlay.VanillaEntry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
