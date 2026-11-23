@@ -4,8 +4,12 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public final class OverlayText {
+    private static final Pattern TARGET_DETAIL =
+            Pattern.compile("#?[a-z0-9_.-]+:[a-z0-9_./-]+|[a-z0-9_]+: .*");
+
     private OverlayText() {}
 
     /** Identify vanilla strings before the event, so a mod can add its own row with the same prefix. */
@@ -30,7 +34,7 @@ public final class OverlayText {
                 if (heading != null) {
                     target = heading;
                     entry = target;
-                } else if (entry == null && target != null) {
+                } else if (entry == null && target != null && TARGET_DETAIL.matcher(line).matches()) {
                     entry = target;
                 } else if (entry == VanillaEntry.DISPLAY) {
                     graphicsDetails = 2;
@@ -39,6 +43,8 @@ public final class OverlayText {
                     graphicsDetails--;
                 } else if (demoLine != null && demoLine.equals(raw)) {
                     entry = VanillaEntry.DEMO;
+                } else {
+                    target = null;
                 }
             }
 

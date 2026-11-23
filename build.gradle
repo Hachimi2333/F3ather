@@ -25,17 +25,54 @@ repositories {
     mavenCentral()
 }
 
+sourceSets {
+    fixture
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.13.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}
+
 neoForge {
     version = neoVersion
+    addModdingDependenciesTo sourceSets.fixture
+    mods {
+        f3ather { sourceSet sourceSets.main }
+        f3ather_fixture { sourceSet sourceSets.fixture }
+    }
     runs {
-        client { client() }
+        client {
+            client()
+            loadedMods = [mods.f3ather]
+        }
+        fixtureClient {
+            client()
+            gameDirectory = project.file('runs/fixture')
+            loadedMods = providers.gradleProperty('fixtureBaseline').isPresent()
+                    ? [mods.f3ather_fixture] : [mods.f3ather, mods.f3ather_fixture]
+            if (providers.gradleProperty('fixtureAuto').isPresent()) {
+                systemProperty 'f3ather.fixture.auto', 'true'
+            }
+            def world = providers.gradleProperty('fixtureWorld').orNull
+            if (world != null) {
+                programArguments.addAll '--quickPlaySingleplayer', world
+            }
+            def serverAddress = providers.gradleProperty('fixtureServer').orNull
+            if (serverAddress != null) {
+                programArguments.addAll '--quickPlayMultiplayer', serverAddress
+            }
+        }
         server {
             server()
             programArgument '--nogui'
+            loadedMods = [mods.f3ather]
         }
-    }
-    mods {
-        f3ather { sourceSet sourceSets.main }
     }
 }
 
