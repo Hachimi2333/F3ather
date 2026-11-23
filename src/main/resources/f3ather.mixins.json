@@ -1,0 +1,10 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "io.github.hachimi2333.f3ather.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["DebugScreenOverlayMixin"],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
