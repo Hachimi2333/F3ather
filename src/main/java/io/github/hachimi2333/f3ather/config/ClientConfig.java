@@ -5,6 +5,7 @@ import io.github.hachimi2333.f3ather.overlay.OverlaySettings;
 import io.github.hachimi2333.f3ather.overlay.OverlaySettings.BuiltIn;
 import io.github.hachimi2333.f3ather.overlay.OverlaySettings.Preset;
 import io.github.hachimi2333.f3ather.overlay.OverlaySettings.Refresh;
+import io.github.hachimi2333.f3ather.overlay.VanillaEntry;
 import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
@@ -28,8 +29,8 @@ public final class ClientConfig {
         REFRESH = builder.defineEnum("refresh", Refresh.LIMITED);
         builder.push("custom");
         CUSTOM_BASE = builder.defineEnum("base", BuiltIn.LIGHT);
-        SHOWN = builder.defineListAllowEmpty("shown", List.<String>of(), ClientConfig::isEntryId);
-        HIDDEN = builder.defineListAllowEmpty("hidden", List.<String>of(), ClientConfig::isEntryId);
+        SHOWN = builder.defineListAllowEmpty("shown", List.of(), VanillaEntry.FPS::id, ClientConfig::isEntryId);
+        HIDDEN = builder.defineListAllowEmpty("hidden", List.of(), VanillaEntry.FPS::id, ClientConfig::isEntryId);
         builder.pop();
         SPEC = builder.build();
     }

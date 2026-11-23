@@ -44,7 +44,7 @@ The default refresh mode samples Minecraft’s text at up to 10 Hz. Every Frame 
 Minecraft 资源对象可通过 BMCLAPI 下载。运行前在 PowerShell 中设置以下环境变量，恢复官方资源地址时可移除该变量。Use the same variable with `export` in a POSIX shell.
 
 ```powershell
-$env:NFRT_ASSET_REPOSITORY = 'https://bmclapi2.bangbang93.com/assets'
+$env:NFRT_ASSET_REPOSITORY = 'https://bmclapi2.bangbang93.com/assets/'
 .\gradlew.bat downloadAssets
 ```
 
