@@ -14,13 +14,17 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 repositories {
     if (providers.gradleProperty('useChinaMirrors').get().toBoolean()) {
-        maven {
+        def centralMirror = maven {
+            name = 'Aliyun Maven Central'
             url = 'https://maven.aliyun.com/repository/central'
             content {
                 excludeGroupByRegex('net\\.neoforged(\\..*)?')
                 excludeGroupByRegex('com\\.mojang(\\..*)?')
             }
         }
+        // Prefer the mirror for Central artifacts while keeping dedicated repositories for excluded groups.
+        remove(centralMirror)
+        add(0, centralMirror)
     }
     mavenCentral()
 }
