@@ -1,0 +1,12 @@
+pluginManagement {
+    repositories {
+        if (providers.gradleProperty('useChinaMirrors').orElse('true').get().toBoolean()) {
+            maven { url = 'https://maven.aliyun.com/repository/gradle-plugin' }
+            maven { url = 'https://maven.aliyun.com/repository/central' }
+        }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'F3ather'

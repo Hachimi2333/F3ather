@@ -1,0 +1,60 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+group = 'io.github.hachimi2333.f3ather'
+version = modVersion
+
+base {
+    archivesName = 'f3ather'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    if (providers.gradleProperty('useChinaMirrors').get().toBoolean()) {
+        maven {
+            url = 'https://maven.aliyun.com/repository/central'
+            content {
+                excludeGroupByRegex('net\\.neoforged(\\..*)?')
+                excludeGroupByRegex('com\\.mojang(\\..*)?')
+            }
+        }
+    }
+    mavenCentral()
+}
+
+neoForge {
+    version = neoVersion
+    runs {
+        client { client() }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+    }
+    mods {
+        f3ather { sourceSet sourceSets.main }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('processResources', ProcessResources) {
+    def metadata = [
+        modVersion: modVersion,
+        minecraftVersion: minecraftVersion,
+        minimumNeoVersion: minimumNeoVersion
+    ]
+    inputs.properties metadata
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand metadata
+    }
+}
+
+tasks.named('jar', Jar) {
+    from('LICENSE')
+}
