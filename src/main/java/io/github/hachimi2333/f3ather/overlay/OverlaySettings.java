@@ -32,7 +32,7 @@ public record OverlaySettings(
     public enum BuiltIn {
         LIGHT, COMMON, ORIGINAL;
 
-        boolean includes(BuiltIn minimum) {
+        public boolean includes(BuiltIn minimum) {
             return ordinal() >= minimum.ordinal();
         }
     }
