@@ -10,13 +10,14 @@ import top.hachimi2333.F3ather;
 import top.hachimi2333.config.ClientConfig;
 import top.hachimi2333.config.F3atherScreen;
 import top.hachimi2333.overlay.OverlaySettings;
-import top.hachimi2333.overlay.OverlaySettings.Mode;
-import top.hachimi2333.overlay.VanillaEntry;
+import top.hachimi2333.config.TabEditorScreen;
+import top.hachimi2333.overlay.OverlaySettings.BuiltIn;
+import top.hachimi2333.overlay.OverlaySettings.Region;
+import top.hachimi2333.overlay.OverlaySettings.Tab;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,11 +28,11 @@ final class FixtureChecks {
 
     static void prepare() {
         original = ClientConfig.current();
-        ClientConfig.save(OverlaySettings.DEFAULT);
+        measure(false, 10);
     }
 
-    static void traditional() {
-        ClientConfig.save(new OverlaySettings(Mode.TRADITIONAL, "J", original.enabled(), original.order(), original.legacyAddons()));
+    static void measure(boolean compatibility, int rate) {
+        ClientConfig.save(new OverlaySettings(rate, compatibility, Set.of(BuiltIn.VANILLA), java.util.List.of()));
     }
 
     static void restore() {
@@ -39,9 +40,25 @@ final class FixtureChecks {
     }
 
     static void enableAll() {
-        var enabled = new HashSet<>(VanillaEntry.IDS);
-        F3ather.ADDONS.entries().stream().limit(3).forEach(entry -> enabled.add(entry.id()));
-        ClientConfig.save(new OverlaySettings(Mode.F3ATHER, "J", enabled, VanillaEntry.IDS, original.legacyAddons()));
+        ClientConfig.save(OverlaySettings.DEFAULT);
+    }
+
+    static void openEditor() {
+        var tab = Tab.create("Fixture")
+                .move("vanilla:xyz", Region.TOP_LEFT, 0)
+                .move("vanilla:biome", Region.BOTTOM_LEFT, 0)
+                .move("vanilla:target_block", Region.TOP_RIGHT, 0)
+                .move("vanilla:memory", Region.BOTTOM_RIGHT, 0);
+        ClientConfig.save(ClientConfig.current().withTab(tab));
+        Minecraft.getInstance().setScreen(new TabEditorScreen(new F3atherScreen(null), tab.id()));
+    }
+
+    static void selectTab(Minecraft mc, String id) {
+        for (int i = 0; i < 6 && !id.equals(F3ather.HUD.activeTab()); i++) {
+            key(mc, GLFW.GLFW_KEY_TAB, GLFW.GLFW_PRESS);
+            key(mc, GLFW.GLFW_KEY_TAB, GLFW.GLFW_RELEASE);
+        }
+        if (!id.equals(F3ather.HUD.activeTab())) throw new IllegalStateException("Could not select tab " + id);
     }
 
     static void verifyAddons() {
@@ -67,16 +84,15 @@ final class FixtureChecks {
 
     static void verifyShortcuts(Minecraft mc) {
         var configured = ClientConfig.current();
-        pressDebugChord(mc, GLFW.GLFW_KEY_J);
+        pressDebugChord(mc, GLFW.GLFW_KEY_0);
         requireSettings(mc);
         key(mc, GLFW.GLFW_KEY_ESCAPE, GLFW.GLFW_PRESS);
-        if (mc.screen != null || ClientConfig.current() != configured) {
-            throw new IllegalStateException("Escape did not cancel the settings draft");
+        if (mc.screen != null || !ClientConfig.current().equals(configured)) {
+            throw new IllegalStateException("Opening settings changed the current configuration");
         }
 
-        ClientConfig.save(new OverlaySettings(Mode.TRADITIONAL, "K", configured.enabled(), configured.order(),
-                configured.legacyAddons()));
-        pressDebugChord(mc, GLFW.GLFW_KEY_K);
+        ClientConfig.save(configured.withCompatibility(true));
+        pressDebugChord(mc, GLFW.GLFW_KEY_0);
         requireSettings(mc);
         key(mc, GLFW.GLFW_KEY_ESCAPE, GLFW.GLFW_PRESS);
         ClientConfig.save(configured);

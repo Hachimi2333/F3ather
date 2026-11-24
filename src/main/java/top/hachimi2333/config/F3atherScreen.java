@@ -1,299 +1,216 @@
 package top.hachimi2333.config;
 
-import com.nstut.openui.api.ButtonWidget;
 import com.nstut.openui.api.UIComponent;
 import com.nstut.openui.api.Ui;
 import com.nstut.openui.api.UiRender;
+import com.nstut.openui.controls.Dialog;
 import com.nstut.openui.controls.ScrollView;
 import com.nstut.openui.layout.Alignment;
 import com.nstut.openui.minecraft.UiScreen;
-import net.minecraft.client.gui.Font;
+import com.nstut.openui.overlay.OverlayHandle;
+import com.nstut.openui.state.Signal;
+import com.nstut.openui.state.Signals;
+import com.nstut.openui.theme.TextStyle;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
-import top.hachimi2333.F3ather;
-import top.hachimi2333.overlay.AddonEntries;
-import top.hachimi2333.overlay.OverlaySettings;
-import top.hachimi2333.overlay.OverlaySettings.Mode;
-import top.hachimi2333.overlay.VanillaEntry;
-import top.hachimi2333.render.ModernFont;
+import top.hachimi2333.overlay.OverlaySettings.BuiltIn;
+import top.hachimi2333.overlay.OverlaySettings.Tab;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.function.Consumer;
 
 public final class F3atherScreen extends UiScreen {
-    private static final int TEXT = 0xffe8f0f7;
-    private static final int MUTED = 0xffa4b4c5;
-    private static final int ACCENT = 0xff7ae3bd;
-    private static final int PANEL = 0xff182330;
-    private static final int GAP = 8;
-
+    static final int ACCENT = 0xff9ce2d8;
+    static final int TEXT = 0xffe8eff3;
+    static final int MUTED = 0xffaab7c1;
+    private static final ResourceLocation LOGO = ResourceLocation.fromNamespaceAndPath("f3ather", "textures/gui/logo.png");
     private final Screen parent;
-    private final Set<String> enabled;
-    private final List<String> order;
-    private final Map<String, AddonEntries.Entry> addons = new HashMap<>();
-    private final Map<String, Boolean> legacy;
-    private Mode mode;
-    private String shortcut;
-    private boolean binding;
-    private double scrollOffset;
-    private ScrollView list;
+    private ScrollView tabs;
+    private double scroll;
+    private Signal<Double> rate;
+    private int savedRate;
+    private OverlayHandle nameDialog;
+    private Runnable submitName;
 
     public F3atherScreen(Screen parent) {
-        super(text("title"));
+        super(label("title"));
         this.parent = parent;
-        OverlaySettings settings = ClientConfig.current();
-        mode = settings.mode();
-        shortcut = settings.shortcut();
-        enabled = new HashSet<>(settings.enabled());
-        legacy = settings.legacyAddons();
-        var available = new ArrayList<>(VanillaEntry.IDS);
-        for (AddonEntries.Entry addon : F3ather.ADDONS.entries()) {
-            addons.put(addon.id(), addon);
-            available.add(addon.id());
-            if (settings.showsAddon(addon.id(), addon.legacyId(), addon.legacyOther())) {
-                enabled.add(addon.id());
-            }
-        }
-        // Keep settings for modules that have not contributed text in this session.
-        order = new ArrayList<>(settings.order());
-        for (String id : available) {
-            if (!order.contains(id)) order.add(id);
-        }
     }
 
-    @Override
-    protected int uiLeft() { return Math.max(8, (width - 800) / 2); }
+    @Override protected int uiLeft() { return (width - uiWidth()) / 2; }
+    @Override protected int uiTop() { return (height - uiHeight()) / 2; }
+    @Override protected int uiWidth() { return Math.max(1, Math.min(444, width - 16)); }
+    @Override protected int uiHeight() { return Math.max(1, Math.min(320, height - 16)); }
 
     @Override
-    protected int uiWidth() { return width - 2 * uiLeft(); }
-
-    @Override
-    protected int uiTop() { return Math.max(7, (height - 530) / 2); }
-
-    @Override
-    protected int uiHeight() { return height - 2 * uiTop(); }
-
-    @Override
-    public void render(GuiGraphics graphics, int x, int y, float delta) {
-        graphics.fill(0, 0, width, height, 0xff10171f);
-        int leftWidth = sidebarWidth();
-        int top = uiTop() + 26;
-        int bottom = uiTop() + uiHeight() - 28;
-        if (bottom > top) {
-            UiRender.roundedRect(graphics, uiLeft(), top, leftWidth, bottom - top, 7, PANEL);
-            UiRender.roundedRect(graphics, uiLeft() + leftWidth + GAP, top,
-                    uiWidth() - leftWidth - GAP, bottom - top, 7, PANEL);
-        }
-        graphics.flush();
-        super.render(graphics, x, y, delta);
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+        graphics.fillGradient(0, 0, width, height, 0xff151d25, 0xff0e131a);
+        UiRender.roundedRect(graphics, uiLeft(), uiTop(), uiWidth(), uiHeight(), 10, 0xff2b3843);
+        UiRender.roundedRect(graphics, uiLeft() + 1, uiTop() + 1, uiWidth() - 2, uiHeight() - 2, 9, 0xff19222b);
+        graphics.blit(LOGO, uiLeft() + 13, uiTop() + 13, 0, 0, 16, 16, 16, 16);
     }
-
-    private int sidebarWidth() { return Math.clamp(uiWidth() / 4, 77, 145); }
 
     @Override
     protected UIComponent buildUI() {
-        var title = label(text("title"), 17, TEXT).height(20).fillWidth();
-        var sidebar = Ui.column(
-                label(text("mode"), 9, MUTED).fillWidth(),
-                choice("mode_f3ather", Mode.F3ATHER),
-                choice("mode_traditional", Mode.TRADITIONAL),
-                label(text("shortcut"), 9, MUTED).fillWidth(),
-                button(binding ? text("press_letter") : shortcut.isEmpty() ? text("disabled")
-                                : text("shortcut_label", shortcut),
-                        () -> { binding = true; refresh(); }).fillWidth(),
-                button(text("disable_shortcut"), () -> { binding = false; shortcut = ""; refresh(); }).fillWidth()
-        ).gap(5).fillWidth();
-        if (binding) sidebar.addChild(label(text("allowed_keys", String.join(" · ",
-                ClientConfig.SHORTCUT_KEYS.split(""))), 9, MUTED, 3).fillWidth());
-        var left = Ui.padding(7, Ui.scroll(sidebar).fillWidth().fillHeight()).width(sidebarWidth()).fillHeight();
-        var right = mode == Mode.F3ATHER ? settingsList()
-                : Ui.column(label(text("mode_traditional"), 13, TEXT).fillWidth(),
-                        label(text("traditional_description"), 10, MUTED, 4).fillWidth()).gap(8);
-        if (mode == Mode.TRADITIONAL) list = null;
-        var body = Ui.row(left, Ui.padding(7, right.fillWidth().fillHeight()).flex().fillHeight())
-                .gap(GAP).fillWidth().flex();
-        var save = button(text("save"), () -> {
-            ClientConfig.save(new OverlaySettings(mode, shortcut, enabled, order, legacy));
-            onClose();
-        }).primary().width(68);
-        var cancel = button(text("cancel"), this::onClose).width(68);
-        var footer = Ui.row(Ui.column().flex(), cancel, save).gap(GAP).fillWidth().height(21);
-        return Ui.column(title, body, footer).gap(6).fillWidth().fillHeight();
+        var settings = ClientConfig.current();
+        savedRate = settings.refreshHz();
+        rate = Signals.of(savedRate == 0 ? 61.0 : (double) savedRate);
+        var title = Ui.row(Ui.spacer().width(21),
+                Ui.text(Component.literal("F3ather")).style(TextStyle.TITLE.withColor(TEXT)).flex(),
+                Ui.button(label("back"), this::onClose).small().ghost())
+                .align(Alignment.CENTER).fillWidth().height(23);
+        var refresh = Ui.row(Ui.text(label("refresh")).color(TEXT).width(91),
+                Ui.slider(rate, 1, 61).flex(),
+                Ui.text(() -> sliderHz() == 0 ? label("every_frame") : label("hz", sliderHz()))
+                        .color(ACCENT).centered().width(66))
+                .gap(5).align(Alignment.CENTER).height(24).fillWidth();
+        var compatibility = Ui.row(Ui.text(label("compatibility")).color(TEXT).flex(),
+                toggle(settings.compatibility(), value -> ClientConfig.save(ClientConfig.current().withCompatibility(value))))
+                .gap(5).align(Alignment.CENTER).height(22).fillWidth();
+        var preferences = Ui.card(refresh, compatibility).padding(8).outlined(true).fillWidth();
+
+        var tabsHeading = Ui.row(Ui.text(label("tabs")).style(TextStyle.HEADING.withColor(TEXT)).flex(),
+                Ui.button(label("new_tab"), () -> editName(null)).small().primary())
+                .align(Alignment.CENTER).height(21).fillWidth();
+        var rows = Ui.column().gap(3).fillWidth();
+        for (BuiltIn tab : BuiltIn.values()) {
+            rows.addChild(tabRow(Component.translatable("f3ather.tab." + tab.id()),
+                    settings.enabled().contains(tab), value -> ClientConfig.save(ClientConfig.current().withBuiltIn(tab, value)), null));
+        }
+        for (Tab tab : settings.customTabs()) {
+            rows.addChild(tabRow(Component.literal(tab.name()), tab.enabled(), value -> changeTab(tab.id(), current -> current.toggle(value)), tab));
+        }
+        tabs = Ui.scroll(rows).scrollTo(scroll);
+        return Ui.padding(12, Ui.column(title, preferences, tabsHeading, tabs.fillWidth().flex())
+                .gap(7).fillWidth().fillHeight()).fillWidth().fillHeight();
     }
 
-    private UIComponent settingsList() {
-        var rows = Ui.column().gap(4);
-        int textWidth = Math.max(30, uiWidth() - sidebarWidth() - 119);
-        var titles = new HashMap<String, VanillaEntry>();
-        for (VanillaEntry entry : VanillaEntry.ALL) titles.put(entry.id(), entry);
-        var visible = order.stream().filter(id -> titles.containsKey(id) || addons.containsKey(id)).toList();
-        for (int index = 0; index < visible.size(); index++) {
-            String id = visible.get(index);
-            var builtin = titles.get(id);
-            AddonEntries.Entry addon = addons.get(id);
-            Component title = builtin == null
-                    ? Component.literal(addon.name().isEmpty() ? addon.sample() : addon.name())
-                    : Component.translatable(builtin.translationKey());
-            Component description;
-            if (builtin != null) {
-                description = Component.translatable(builtin.descriptionKey());
+    private UIComponent tabRow(Component name, boolean enabled, Consumer<Boolean> onToggle, Tab tab) {
+        var row = Ui.row(Ui.text(name).color(TEXT).ellipsis().flex()).align(Alignment.CENTER).gap(5).fillWidth();
+        if (tab != null) {
+            row.addChild(Ui.button(label("edit"), () -> openEditor(tab.id())).small().secondary());
+            row.addChild(Ui.button(label("rename"), () -> editName(tab.id())).small().ghost());
+            row.addChild(Ui.button(Component.literal("×"), () -> delete(tab)).small().ghost()
+                    .width(18).tooltip(label("delete")));
+        }
+        row.addChild(toggle(enabled, onToggle));
+        return Ui.card(row.height(17)).padding(4).outlined(true).fillWidth();
+    }
+
+    private static UIComponent toggle(boolean startingValue, Consumer<Boolean> onChange) {
+        var state = Signals.of(startingValue);
+        state.subscribe(onChange);
+        return Ui.toggle(state).width(24);
+    }
+
+    private void editName(String id) {
+        Tab existing = id == null ? null : ClientConfig.current().customTab(id);
+        if (id != null && existing == null) return;
+        var title = label(existing == null ? "new_tab" : "rename");
+        var name = Signals.of(existing == null ? "" : existing.name());
+        var input = Ui.textField(name, font).placeholder(label("tab_name").getString()).maxLength(40);
+        submitName = () -> {
+            String cleaned = name.get().strip();
+            if (cleaned.isEmpty() || nameDialog == null || !nameDialog.isOpen()) return;
+            nameDialog.close();
+            if (existing == null) {
+                Tab created = Tab.create(cleaned);
+                ClientConfig.save(ClientConfig.current().withTab(created));
+                openEditor(created.id());
             } else {
-                Component source = addon.source().id().isEmpty() ? text("source_unknown")
-                        : text("source", addon.source().name());
-                description = text("addon_description", source, addon.sample());
-            }
-            int descriptionLines = Math.clamp((int) Math.ceil(ModernFont.INSTANCE.width(
-                    description.getString(), 9) / textWidth), 1, 3);
-            var copy = Ui.column(label(title, 10.5f, TEXT).fillWidth(),
-                    label(description, 9, MUTED, descriptionLines).fillWidth()).gap(1).flex();
-            boolean on = enabled.contains(id);
-            var toggle = button(text(on ? "on" : "off"), () -> {
-                if (!enabled.remove(id)) enabled.add(id);
+                changeTab(id, tab -> tab.rename(cleaned));
                 refresh();
-            });
-            toggle.setActive(on);
-            toggle.width(41);
-            String previous = index == 0 ? null : visible.get(index - 1);
-            String next = index == visible.size() - 1 ? null : visible.get(index + 1);
-            var up = button(text("move_up", title), "↑", () -> move(id, previous)).enabled(previous != null).width(19);
-            var down = button(text("move_down", title), "↓", () -> move(id, next)).enabled(next != null).width(19);
-            rows.addChild(Ui.row(copy, toggle, up, down).gap(3)
-                    .align(Alignment.CENTER).fillWidth().height(17 + descriptionLines * 11));
-        }
-        if (addons.isEmpty()) {
-            rows.addChild(label(text("discover"), 9, MUTED, 3).fillWidth());
-        }
-        list = Ui.scroll(rows);
-        list.scrollTo(scrollOffset);
-        return Ui.column(label(text("items"), 13, ACCENT).fillWidth(),
-                list.flex().fillWidth()).gap(4);
+            }
+        };
+        var save = Ui.button(label(existing == null ? "create" : "save"), () -> submitName.run())
+                .small().primary().enabled(!name.get().isBlank());
+        name.subscribe(value -> save.enabled(!value.isBlank()));
+        var actions = Ui.row(Ui.spacer().flex(), Ui.button(label("cancel"), () -> nameDialog.close()).small().ghost(), save)
+                .gap(5).align(Alignment.CENTER).fillWidth();
+        nameDialog = Dialog.show(uiRuntime().overlays(), Ui.card(Ui.column(Ui.heading(title),
+                        input.fillWidth(), actions).gap(8).fillWidth())
+                .padding(12).elevated(true).outlined(true).width(Math.min(246, width - 12)));
+        uiRuntime().scheduleFrame(input, input::requestFocus);
     }
 
-    private UIComponent choice(String key, Mode choice) {
-        var button = button(text(key), () -> {
-            mode = choice;
-            binding = false;
-            refresh();
-        });
-        button.setActive(mode == choice);
-        return button.fillWidth();
+    private void delete(Tab tab) {
+        final OverlayHandle[] dialog = new OverlayHandle[1];
+        var actions = Ui.row(Ui.spacer().flex(),
+                Ui.button(label("cancel"), () -> dialog[0].close()).small().ghost(),
+                Ui.button(label("delete"), () -> {
+                    dialog[0].close();
+                    ClientConfig.save(ClientConfig.current().withoutTab(tab.id()));
+                    refresh();
+                }).small().danger()).gap(5).fillWidth();
+        dialog[0] = Dialog.show(uiRuntime().overlays(),
+                Ui.card(Ui.column(Ui.heading(Component.literal(tab.name())).ellipsis(), actions).gap(8))
+                        .padding(12).elevated(true).outlined(true).width(Math.min(236, width - 12)));
     }
 
-    private void move(String id, String other) {
-        if (other == null) return;
-        java.util.Collections.swap(order, order.indexOf(id), order.indexOf(other));
-        refresh();
+    private void changeTab(String id, java.util.function.UnaryOperator<Tab> change) {
+        var settings = ClientConfig.current();
+        var tab = settings.customTab(id);
+        if (tab != null) ClientConfig.save(settings.withTab(change.apply(tab)));
+    }
+
+    private void openEditor(String id) {
+        rememberScroll();
+        minecraft.setScreen(new TabEditorScreen(this, id));
+    }
+
+    private void rememberScroll() {
+        if (tabs != null) scroll = tabs.scrollOffset();
     }
 
     private void refresh() {
-        if (list != null) scrollOffset = list.scrollOffset();
+        rememberScroll();
         rebuildUI();
     }
 
+    private int sliderHz() {
+        int value = (int) Math.round(rate.get());
+        return value == 61 ? 0 : value;
+    }
+
+    private void saveRate() {
+        if (rate == null) return;
+        int value = sliderHz();
+        if (value != savedRate) {
+            ClientConfig.save(ClientConfig.current().withRefresh(value));
+            savedRate = value;
+        }
+    }
+
     @Override
-    public boolean keyPressed(int key, int scanCode, int modifiers) {
-        if (binding) {
-            if (key == GLFW.GLFW_KEY_ESCAPE) {
-                onClose();
-            } else if (key >= 'A' && key <= 'Z' && ClientConfig.SHORTCUT_KEYS.indexOf(key) >= 0) {
-                shortcut = Character.toString(key);
-                binding = false;
-                refresh();
-            }
+    public boolean mouseReleased(double x, double y, int button) {
+        boolean handled = super.mouseReleased(x, y, button);
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) saveRate();
+        return handled;
+    }
+
+    @Override
+    public boolean keyPressed(int key, int scan, int modifiers) {
+        if (nameDialog != null && nameDialog.isOpen() && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER)) {
+            submitName.run();
             return true;
         }
-        return super.keyPressed(key, scanCode, modifiers);
+        boolean handled = super.keyPressed(key, scan, modifiers);
+        if (key == GLFW.GLFW_KEY_LEFT || key == GLFW.GLFW_KEY_RIGHT) saveRate();
+        return handled;
     }
 
     @Override
-    public void onClose() { minecraft.setScreen(parent); }
-
-    @Override
-    public boolean isPauseScreen() { return false; }
-
-    private static ButtonWidget button(Component title, Runnable action) {
-        return button(title, title.getString(), action);
+    public void removed() {
+        saveRate();
+        super.removed();
     }
 
-    private static ButtonWidget button(Component title, String shown, Runnable action) {
-        var button = Ui.button(title, action).height(20).radius(4)
-                .content(new Label(shown, 9.5f, TEXT, 1, true));
-        button.setColors(0xff253546, 0xff365770);
-        return button;
-    }
+    @Override public void onClose() { minecraft.setScreen(parent); }
+    @Override public boolean isPauseScreen() { return false; }
 
-    private static UIComponent label(Component text, float size, int color) {
-        return label(text, size, color, 1);
-    }
-
-    private static UIComponent label(Component text, float size, int color, int maxLines) {
-        return new Label(text.getString(), size, color, maxLines, false);
-    }
-
-    private static Component text(String key, Object... args) {
-        return Component.translatable("f3ather.screen." + key, args);
-    }
-
-    private static final class Label extends UIComponent {
-        private final String text;
-        private final float size;
-        private final int color;
-        private final int maxLines;
-        private final boolean centered;
-        private List<String> lines = List.of();
-
-        Label(String text, float size, int color, int maxLines, boolean centered) {
-            this.text = text;
-            this.size = size;
-            this.color = color;
-            this.maxLines = maxLines;
-            this.centered = centered;
-        }
-
-        @Override
-        public int preferredWidth(Font font) { return (int) Math.ceil(ModernFont.INSTANCE.width(text, size)); }
-
-        @Override
-        public int preferredHeight(Font font) { return (int) Math.ceil(size + 2) * maxLines; }
-
-        @Override
-        public void layout(int x, int y, int width, int height) {
-            super.layout(x, y, width, height);
-            ModernFont modern = ModernFont.INSTANCE;
-            var parts = new ArrayList<String>(maxLines);
-            String remaining = text;
-            for (int index = 0; index < maxLines && !remaining.isBlank(); index++) {
-                String fitted = modern.fit(remaining, size, width);
-                if (fitted.equals(remaining) || index == maxLines - 1 || fitted.length() <= 1) {
-                    parts.add(fitted);
-                    break;
-                }
-                int length = fitted.length() - 1;
-                int space = remaining.lastIndexOf(' ', length);
-                if (space > length / 2) length = space;
-                parts.add(remaining.substring(0, length).stripTrailing());
-                remaining = remaining.substring(length).stripLeading();
-            }
-            lines = parts;
-        }
-
-        @Override
-        public void render(GuiGraphics graphics, Font vanillaFont, int mouseX, int mouseY, float delta) {
-            if (!visible) return;
-            ModernFont modern = ModernFont.INSTANCE;
-            float lineY = centered ? y + Math.max(0, (height - size) / 2) : y;
-            for (String line : lines) {
-                float lineX = centered ? x + Math.max(0, (width - modern.width(line, size)) / 2) : x;
-                modern.draw(graphics, line, lineX, lineY, size, color);
-                lineY += size + 2;
-            }
-            graphics.flush();
-        }
+    static Component label(String key, Object... arguments) {
+        return Component.translatable("f3ather.screen." + key, arguments);
     }
 }

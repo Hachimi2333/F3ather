@@ -3,7 +3,6 @@ package top.hachimi2333.f3ather_fixture;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.decoration.ArmorStand;
@@ -98,25 +97,18 @@ final class NetworkChecks {
 
     static void observe(CustomizeGuiOverlayEvent.DebugText event, Minecraft mc) {
         if (!GUEST || initialDimension == null || mc.level == null) return;
-        String serverName = text("entry.server");
-        String chunkName = text("entry.chunk_position");
-        String waiting = text("value.waiting_chunk");
         String dimension = mc.level.dimension().location().toString();
         for (String row : event.getLeft()) {
             if (row == null) continue;
-            remoteSeen |= row.startsWith(serverName + " ·");
-            unloadedSeen |= row.startsWith(chunkName + " ·") && row.contains(waiting);
-            changedDimension |= mc.level.dimension() != initialDimension && row.startsWith(text("entry.dimension") + " ·")
-                    && row.contains(dimension);
+            remoteSeen |= row.startsWith("\"") && row.contains("\" server");
+            unloadedSeen |= row.equals("Waiting for chunk...");
+            changedDimension |= mc.level.dimension() != initialDimension && row.startsWith(dimension + " FC: ");
         }
         if (mc.showOnlyReducedInfo()) {
-            String restricted = text("entry.xyz") + " ·";
-            if (event.getLeft().stream().anyMatch(row -> row != null && row.startsWith(restricted))) {
+            if (event.getLeft().stream().anyMatch(row -> row != null && row.startsWith("XYZ: "))) {
                 throw new IllegalStateException("Server-restricted coordinates passed to DebugText");
             }
             reducedSeen = true;
         }
     }
-
-    private static String text(String key) { return Component.translatable("f3ather." + key).getString(); }
 }

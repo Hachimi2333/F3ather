@@ -1,52 +1,44 @@
 package top.hachimi2333.config;
 
-import top.hachimi2333.overlay.OverlaySettings;
-import top.hachimi2333.overlay.OverlaySettings.BuiltIn;
-import top.hachimi2333.overlay.OverlaySettings.Mode;
-import top.hachimi2333.overlay.OverlaySettings.Preset;
-import top.hachimi2333.overlay.OverlaySettings.Refresh;
-import top.hachimi2333.overlay.VanillaEntry;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.common.ModConfigSpec;
+import top.hachimi2333.overlay.OverlaySettings;
+import top.hachimi2333.overlay.OverlaySettings.BuiltIn;
+import top.hachimi2333.overlay.OverlaySettings.Region;
+import top.hachimi2333.overlay.OverlaySettings.Tab;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.Locale;
+import java.util.UUID;
 
 public final class ClientConfig {
+    public static final String FILE_NAME = "f3ather-tabs.toml";
     public static final ModConfigSpec SPEC;
-    public static final String SHORTCUT_KEYS = "JKMORXYZ";
-    private static final ModConfigSpec.IntValue SCHEMA;
-    private static final ModConfigSpec.EnumValue<Mode> MODE;
-    private static final ModConfigSpec.ConfigValue<String> SHORTCUT;
-    private static final ModConfigSpec.ConfigValue<List<? extends String>> ENABLED;
-    private static final ModConfigSpec.ConfigValue<List<? extends String>> ORDER;
-    private static final ModConfigSpec.EnumValue<Preset> PRESET;
-    private static final ModConfigSpec.EnumValue<BuiltIn> LEGACY_BASE;
-    private static final ModConfigSpec.ConfigValue<List<? extends String>> LEGACY_SHOWN;
-    private static final ModConfigSpec.ConfigValue<List<? extends String>> LEGACY_HIDDEN;
-
+    private static final Gson JSON = new Gson();
+    private static final ModConfigSpec.IntValue REFRESH;
+    private static final ModConfigSpec.BooleanValue COMPATIBILITY;
+    private static final EnumMap<BuiltIn, ModConfigSpec.BooleanValue> BUILT_INS = new EnumMap<>(BuiltIn.class);
+    private static final ModConfigSpec.ConfigValue<List<? extends String>> CUSTOM;
     private static volatile OverlaySettings current = OverlaySettings.DEFAULT;
 
     static {
         var builder = new ModConfigSpec.Builder();
-        SCHEMA = builder.defineInRange("schema", 0, 0, 1);
-        MODE = builder.defineEnum("mode", Mode.F3ATHER);
-        SHORTCUT = builder.define("shortcut", "J", value -> value instanceof String key
-                && (key.isEmpty() || key.length() == 1 && SHORTCUT_KEYS.contains(key)));
-        ENABLED = builder.defineListAllowEmpty("enabled", List.copyOf(OverlaySettings.DEFAULT.enabled()),
-                VanillaEntry.FPS::id, ClientConfig::validId);
-        ORDER = builder.defineListAllowEmpty("order", List.of(), VanillaEntry.FPS::id, ClientConfig::validId);
-        PRESET = builder.defineEnum("preset", Preset.LIGHT);
-        builder.defineEnum("refresh", Refresh.LIMITED);
-        builder.push("custom");
-        LEGACY_BASE = builder.defineEnum("base", BuiltIn.LIGHT);
-        LEGACY_SHOWN = builder.defineListAllowEmpty("shown", List.of(), VanillaEntry.FPS::id, ClientConfig::validId);
-        LEGACY_HIDDEN = builder.defineListAllowEmpty("hidden", List.of(), VanillaEntry.FPS::id, ClientConfig::validId);
+        REFRESH = builder.comment("Text samples per second. Zero samples every frame.")
+                .defineInRange("refreshHz", 10, 0, 60);
+        COMPATIBILITY = builder.define("compatibility", false);
+        builder.push("builtIn");
+        for (BuiltIn tab : BuiltIn.values()) BUILT_INS.put(tab, builder.define(tab.id(), true));
         builder.pop();
+        CUSTOM = builder.comment("Custom tabs saved by the in-game layout editor.")
+                .defineListAllowEmpty("customTabs", List.of(), () -> "", value -> value instanceof String);
         SPEC = builder.build();
     }
 
@@ -55,64 +47,68 @@ public final class ClientConfig {
     public static OverlaySettings current() { return current; }
 
     public static synchronized void reload(ModConfigEvent event) {
-        if (event.getConfig().getSpec() != SPEC) {
-            return;
+        if (event.getConfig().getSpec() != SPEC) return;
+        var enabled = EnumSet.noneOf(BuiltIn.class);
+        BUILT_INS.forEach((tab, value) -> { if (value.get()) enabled.add(tab); });
+        var tabs = new ArrayList<Tab>();
+        var ids = new HashSet<String>();
+        for (String encoded : CUSTOM.get()) {
+            Tab tab = decodeTab(encoded);
+            if (tab != null && ids.add(tab.id())) tabs.add(tab);
         }
-        var oldAddons = new LinkedHashMap<String, Boolean>();
-        if (SCHEMA.get() == 0) {
-            Preset preset = PRESET.get();
-            BuiltIn base = preset == Preset.CUSTOM ? LEGACY_BASE.get() : BuiltIn.valueOf(preset.name());
-            var enabled = new TreeSet<>(OverlaySettings.defaults(base));
-            if (base == BuiltIn.ORIGINAL) {
-                oldAddons.put("addon:left:", true);
-                oldAddons.put("addon:right:", true);
-            }
-            if (preset == Preset.CUSTOM) {
-                migrate(LEGACY_SHOWN.get(), true, enabled, oldAddons);
-                migrate(LEGACY_HIDDEN.get(), false, enabled, oldAddons);
-            }
-            save(new OverlaySettings(preset == Preset.ORIGINAL ? Mode.TRADITIONAL : Mode.F3ATHER,
-                    SHORTCUT.get(), enabled, List.of(), oldAddons));
-            return;
-        }
-        LEGACY_SHOWN.get().forEach(id -> oldAddons.put(id, true));
-        LEGACY_HIDDEN.get().forEach(id -> oldAddons.put(id, false));
-        current = new OverlaySettings(MODE.get(), SHORTCUT.get(), Set.copyOf(ENABLED.get()),
-                List.copyOf(ORDER.get()), oldAddons);
-    }
-
-    private static void migrate(List<? extends String> ids, boolean visible, Set<String> enabled,
-                                Map<String, Boolean> addons) {
-        for (String id : ids) {
-            if (id.startsWith("addon:")) {
-                addons.put(id, visible);
-            } else if (VanillaEntry.IDS.contains(id)) {
-                if (visible) enabled.add(id);
-                else enabled.remove(id);
-            }
-        }
+        current = new OverlaySettings(REFRESH.get(), COMPATIBILITY.get(), enabled, tabs);
     }
 
     public static synchronized void save(OverlaySettings settings) {
-        MODE.set(settings.mode());
-        SHORTCUT.set(settings.shortcut());
-        ENABLED.set(new ArrayList<>(new TreeSet<>(settings.enabled())));
-        ORDER.set(settings.order());
-        LEGACY_SHOWN.set(legacyIds(settings, true));
-        LEGACY_HIDDEN.set(legacyIds(settings, false));
-        SCHEMA.set(1);
-        current = settings;
+        if (settings.equals(current)) return;
+        REFRESH.set(settings.refreshHz());
+        COMPATIBILITY.set(settings.compatibility());
+        BUILT_INS.forEach((tab, value) -> value.set(settings.enabled().contains(tab)));
+        CUSTOM.set(settings.customTabs().stream().map(ClientConfig::encodeTab).toList());
         SPEC.save();
+        current = settings;
     }
 
-    private static List<String> legacyIds(OverlaySettings settings, boolean visible) {
-        return settings.legacyAddons().entrySet().stream()
-                .filter(entry -> entry.getValue() == visible)
-                .map(Map.Entry::getKey).sorted().toList();
+    static String encodeTab(Tab tab) {
+        var result = new JsonObject();
+        result.addProperty("id", tab.id());
+        result.addProperty("name", tab.name());
+        result.addProperty("enabled", tab.enabled());
+        var regions = new JsonObject();
+        for (Region region : Region.values()) {
+            var entries = new JsonArray();
+            tab.entries(region).forEach(entries::add);
+            regions.add(region.name().toLowerCase(Locale.ROOT), entries);
+        }
+        result.add("regions", regions);
+        return JSON.toJson(result);
     }
 
-    private static boolean validId(Object value) {
-        return value instanceof String id && id.length() <= 220
-                && (id.startsWith("vanilla:") || id.startsWith("addon:"));
+    static Tab decodeTab(String encoded) {
+        try {
+            var value = JsonParser.parseString(encoded).getAsJsonObject();
+            String id = UUID.fromString(value.get("id").getAsString()).toString();
+            String name = value.get("name").getAsString().strip();
+            if (name.isEmpty() || name.length() > 40) return null;
+            var regions = new EnumMap<Region, List<String>>(Region.class);
+            var storedRegions = value.getAsJsonObject("regions");
+            for (Region region : Region.values()) {
+                var stored = storedRegions.getAsJsonArray(region.name().toLowerCase(Locale.ROOT));
+                if (stored == null) continue;
+                var entries = new ArrayList<String>();
+                for (var item : stored) {
+                    if (!item.isJsonPrimitive() || !item.getAsJsonPrimitive().isString()) continue;
+                    String entry = item.getAsString();
+                    if (entry.length() <= 240 && (entry.startsWith("vanilla:") || entry.startsWith("addon:"))) {
+                        entries.add(entry);
+                    }
+                }
+                regions.put(region, entries);
+            }
+            return new Tab(id, name, value.get("enabled").getAsBoolean(), regions);
+        } catch (IllegalStateException | IllegalArgumentException | NullPointerException |
+                 UnsupportedOperationException | com.google.gson.JsonParseException invalid) {
+            return null;
+        }
     }
 }

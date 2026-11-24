@@ -1,174 +1,325 @@
 package top.hachimi2333.overlay;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.chat.Component;
-import top.hachimi2333.render.ModernFont;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
+import top.hachimi2333.overlay.OverlaySettings.BuiltIn;
+import top.hachimi2333.overlay.OverlaySettings.Region;
+import top.hachimi2333.overlay.OverlaySettings.Tab;
+import top.hachimi2333.render.FastDebugText;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import static top.hachimi2333.overlay.VanillaEntry.*;
 
 public final class OverlayHud {
-    private static final float TEXT_SIZE = 10.5f;
-    private static final int ROW_HEIGHT = 15;
-    private static final int GUTTER = 7;
-    private static final int INSET = 8;
-    private static final int MAX_ROW_TEXT = 2048;
-    private static final int MAX_FRAME_ROWS = 2048;
-    private static final long DISCOVERY_INTERVAL = 500_000_000L;
+    private static final ResourceLocation LOGO = ResourceLocation.fromNamespaceAndPath("f3ather", "textures/gui/logo.png");
+    private static final int TEXT = 0xffe0e0e0;
+    private static final int BACKGROUND = 0x90505050;
+    private static final int ACTIVE = 0xff9ce2d8;
+    private static final int BAR_START = 20;
+    private static final int CHART_SPACE = 72;
 
-    private final DebugData data = new DebugData();
     private final AddonEntries addons;
-    private List<String> lastRows = List.of();
-    private List<String> wrappedRows = List.of();
-    private List<Integer> rowWidths = List.of();
-    private int lastWidth;
+    private final FastDebugText text = new FastDebugText();
+    private final SampleClock clock = new SampleClock();
+    private List<AddonEntries.Row> left = List.of();
+    private List<AddonEntries.Row> right = List.of();
+    private ClientPacketListener connection;
+    private ClientLevel level;
+    private Entity camera;
+    private boolean reduced;
+    private int chartFlags;
+    private boolean modsDetected;
+    private boolean samplingEditor;
+    private String active;
     private int page;
     private int pageCount = 1;
-    private long nextDiscovery;
-    private boolean addonsVisible;
-    private OverlaySettings lastSettings;
+    private Frame latest = Frame.EMPTY;
 
-    public OverlayHud(AddonEntries addons) {
-        this.addons = addons;
-    }
+    public OverlayHud(AddonEntries addons) { this.addons = addons; }
+
+    public FastDebugText text() { return text; }
+    public String activeTab() { return active; }
+    public boolean modsDetected() { return modsDetected; }
+    public boolean samplingEditor() { return samplingEditor; }
 
     public void invalidate() {
-        data.invalidate();
-        lastRows = List.of();
-        wrappedRows = List.of();
-        rowWidths = List.of();
+        clock.invalidate();
+        latest = Frame.EMPTY;
+    }
+
+    public void resetWorld() {
+        invalidate();
+        connection = null;
+        level = null;
+        camera = null;
+        left = List.of();
+        right = List.of();
+        modsDetected = false;
+        active = null;
         page = 0;
         pageCount = 1;
-        nextDiscovery = 0;
     }
 
-    public void advancePage(int direction) {
-        page = Math.clamp(page + direction, 0, pageCount - 1);
+    public void reloadResources() {
+        text.clear();
+        invalidate();
     }
 
-    public Frame begin(Minecraft mc, OverlaySettings settings, int charts) {
-        if (lastSettings != settings) {
-            lastSettings = settings;
-            addonsVisible = settings.enabled().stream().anyMatch(id -> id.startsWith("addon:"))
-                    || settings.legacyAddons().containsValue(true);
-            nextDiscovery = 0;
+    public boolean begin(Minecraft mc, OverlaySettings settings, int charts) {
+        if (mc.getConnection() != connection) {
+            resetWorld();
+            connection = mc.getConnection();
         }
-        long now = System.nanoTime();
-        boolean trackSources = addonsVisible || nextDiscovery == 0 || now >= nextDiscovery;
-        if (trackSources) nextDiscovery = now + DISCOVERY_INTERVAL;
-        var values = data.sample(mc, settings, charts);
-        var left = new ArrayList<AddonEntries.Row>();
-        var right = new ArrayList<AddonEntries.Row>();
-        for (VanillaEntry entry : VanillaEntry.ALL) {
-            List<String> lines = values.get(entry);
-            if (lines == null) continue;
-            var column = entry.rightColumn() ? right : left;
-            for (String line : lines) column.add(new AddonEntries.Row(entry.id(), line));
+        boolean reducedNow = mc.showOnlyReducedInfo();
+        if (level != mc.level || camera != mc.getCameraEntity() || reduced != reducedNow || chartFlags != charts) {
+            invalidate();
         }
-        return new Frame(addons.column(true, left, trackSources), addons.column(false, right, trackSources), settings, charts);
+        level = mc.level;
+        camera = mc.getCameraEntity();
+        reduced = reducedNow;
+        chartFlags = charts;
+        return clock.due(System.nanoTime(), settings.refreshHz());
     }
 
-    public void draw(GuiGraphics graphics, Frame frame) {
-        Minecraft.getInstance().getProfiler().push("f3ather_hud");
-        try {
-            drawFrame(graphics, frame);
-        } finally {
-            Minecraft.getInstance().getProfiler().pop();
+    public AddonEntries.Column column(Minecraft mc, boolean isLeft, List<String> fresh) {
+        if (fresh != null) {
+            var rows = VanillaEntry.label(fresh, isLeft, mc.getSingleplayerServer() != null, mc.isDemo());
+            if (isLeft) left = rows;
+            else right = rows;
         }
+        return addons.column(isLeft, isLeft ? left : right);
     }
 
-    private void drawFrame(GuiGraphics graphics, Frame frame) {
-        var grouped = new LinkedHashMap<String, List<String>>();
-        addons.collect(frame.left(), grouped, frame.settings());
-        addons.collect(frame.right(), grouped, frame.settings());
-        if (grouped.isEmpty()) {
-            page = 0;
-            pageCount = 1;
-            return;
-        }
-        var rows = new ArrayList<String>();
-        entries:
-        for (String id : frame.settings().ordered(new ArrayList<>(grouped.keySet()))) {
-            for (String line : grouped.get(id)) {
-                if (rows.size() == MAX_FRAME_ROWS) break entries;
-                rows.add(limitLength(line));
+    public void accept(AddonEntries.Column leftColumn, AddonEntries.Column rightColumn, OverlaySettings settings) {
+        var grouped = new HashMap<String, List<String>>();
+        var leftAddons = new ArrayList<String>();
+        var rightAddons = new ArrayList<String>();
+        boolean foundLeft = addons.collect(leftColumn, grouped, leftAddons);
+        boolean foundRight = addons.collect(rightColumn, grouped, rightAddons);
+        modsDetected |= foundLeft || foundRight;
+        latest = new Frame(grouped, leftAddons, rightAddons);
+        var tabs = settings.visibleTabs(modsDetected);
+        if (active == null || !tabs.contains(active)) select(tabs.isEmpty() ? null : tabs.getFirst());
+    }
+
+    public void cycle(OverlaySettings settings) {
+        select(OverlaySettings.cycle(settings.visibleTabs(modsDetected), active));
+    }
+
+    public boolean supportsPages() {
+        return active != null && (active.equals(BuiltIn.MODS.id()) || !isBuiltIn(active));
+    }
+
+    public void advancePage(int direction) { page = Math.clamp(page + direction, 0, pageCount - 1); }
+
+    private void select(String id) {
+        active = id;
+        page = 0;
+        pageCount = 1;
+    }
+
+    private static boolean isBuiltIn(String id) {
+        for (BuiltIn tab : BuiltIn.values()) if (tab.id().equals(id)) return true;
+        return false;
+    }
+
+    public static Component title(OverlaySettings settings, String id) {
+        Tab tab = settings.customTab(id);
+        return tab == null ? Component.translatable("f3ather.tab." + id) : Component.literal(tab.name());
+    }
+
+    public void drawHeader(GuiGraphics graphics, OverlaySettings settings, String selected, int top, String indicator) {
+        Font font = Minecraft.getInstance().font;
+        var tabs = settings.visibleTabs(modsDetected);
+        if (selected != null && !tabs.contains(selected)) tabs.add(selected);
+        graphics.blit(LOGO, 2, top + 1, 0, 0, 16, 16, 16, 16);
+        int limit = graphics.guiWidth() - 2;
+        if (indicator != null) {
+            int x = limit - text.width(font, indicator, TEXT);
+            if (x > BAR_START) {
+                graphics.fill(x - 1, top + 4, limit + 1, top + 13, BACKGROUND);
+                text.draw(graphics, font, indicator, x, top + 5, TEXT);
+                limit = x - 4;
             }
         }
-        int columns = graphics.guiWidth() >= 560 ? 2 : 1;
-        int width = Math.min(420, (graphics.guiWidth() - GUTTER * (columns + 1)) / columns);
-        int chartSpace = (frame.charts() & 1) != 0 ? 150 : (frame.charts() & 6) != 0 ? 75 : 0;
-        int visible = Math.max(1, (graphics.guiHeight() - GUTTER - 3 * INSET - chartSpace) / ROW_HEIGHT);
-        if (width < 2 * INSET + 10 || graphics.guiHeight() < ROW_HEIGHT + 2 * INSET) return;
-        ModernFont font = ModernFont.INSTANCE;
-        if (lastWidth != width || !rows.equals(lastRows)) {
-            lastWidth = width;
-            lastRows = rows;
-            var wrapped = new ArrayList<String>();
-            for (String line : rows) wrap(font, line, width - 2 * INSET, wrapped);
-            wrappedRows = wrapped;
-            rowWidths = wrapped.stream().map(line -> (int) Math.ceil(font.width(line, TEXT_SIZE))).toList();
+        if (tabs.isEmpty() || limit <= BAR_START) return;
+        var labels = new ArrayList<String>(tabs.size());
+        var widths = new ArrayList<Integer>(tabs.size());
+        int activeStart = 0;
+        int activeEnd = 0;
+        int total = 0;
+        for (String id : tabs) {
+            String label = title(settings, id).getString();
+            boolean current = id.equals(selected);
+            int width = text.width(font, label, current ? ACTIVE : TEXT) + 9;
+            if (current) {
+                activeStart = total;
+                activeEnd = total + width;
+            }
+            total += width;
+            labels.add(label);
+            widths.add(width);
         }
-        int perPage = columns * visible;
-        pageCount = Math.max(1, (wrappedRows.size() + perPage - 1) / perPage);
-        if (pageCount > 1 && visible > 1) {
-            visible--;
-            perPage = columns * visible;
-            pageCount = (wrappedRows.size() + perPage - 1) / perPage;
+        int available = limit - BAR_START;
+        int overflow = Math.max(0, total - available);
+        int offset = Math.clamp(Math.min(activeStart, activeEnd - available), 0, overflow);
+        graphics.enableScissor(BAR_START, top, limit, top + HudLayout.HEADER);
+        int x = BAR_START - offset;
+        for (int i = 0; i < labels.size() && x < limit; i++) {
+            int width = widths.get(i);
+            if (x + width > BAR_START) {
+                boolean current = tabs.get(i).equals(selected);
+                graphics.fill(x, top + 4, x + width - 2, top + 14, BACKGROUND);
+                if (current) graphics.fill(x, top + 13, x + width - 2, top + 14, ACTIVE);
+                text.draw(graphics, font, labels.get(i), x + 3, top + 5, current ? ACTIVE : TEXT);
+            }
+            x += width;
         }
+        graphics.disableScissor();
+    }
+
+    public void drawSelected(GuiGraphics graphics, OverlaySettings settings) {
+        var rows = selectedRows(settings);
+        int top = HudLayout.HEADER;
+        var bottoms = bottoms(graphics.guiHeight(), top);
+        boolean custom = active != null && !isBuiltIn(active);
+        pageCount = supportsPages()
+                ? HudLayout.pageCount(graphics.guiWidth(), top, bottoms.left(), bottoms.right(), rows, custom) : 1;
         page = Math.min(page, pageCount - 1);
-        int start = page * perPage;
-        int end = Math.min(start + perPage, wrappedRows.size());
-        for (int i = start; i < end; i++) font.prepareText(wrappedRows.get(i));
-        String pageLabel = pageCount > 1 ? Component.translatable("f3ather.hud.page", page + 1, pageCount).getString() : "";
-        int pageLabelWidth = (int) Math.ceil(font.width(pageLabel, TEXT_SIZE));
-        if (!pageLabel.isEmpty()) font.prepareText(pageLabel);
-        font.upload();
+        drawHeader(graphics, settings, active, 0, pageCount == 1 ? null
+                : Component.translatable("f3ather.hud.page", page + 1, pageCount).getString());
+        drawRows(graphics, rows, top, bottoms.left(), bottoms.right(), page, custom);
+    }
 
-        for (int column = 0; column < columns; column++) {
-            int first = start + column * visible;
-            int count = Math.min(visible, end - first);
-            if (count <= 0) break;
-            int x = GUTTER + column * (width + GUTTER);
-            int contentWidth = column == 0 ? pageLabelWidth : 0;
-            for (int i = first; i < first + count; i++) contentWidth = Math.max(contentWidth, rowWidths.get(i));
-            int panelWidth = Math.min(width, contentWidth + 2 * INSET);
-            int height = 2 * INSET + count * ROW_HEIGHT + (column == 0 && !pageLabel.isEmpty() ? ROW_HEIGHT : 0);
-            graphics.fill(x, GUTTER, x + panelWidth, GUTTER + height, 0xdd111923);
-            graphics.fill(x, GUTTER, x + 2, GUTTER + height, 0xff54d6ac);
-            graphics.flush();
-            for (int row = 0; row < count; row++) {
-                font.drawPrepared(graphics, wrappedRows.get(first + row), x + INSET,
-                        GUTTER + INSET + row * ROW_HEIGHT, TEXT_SIZE, 0xffebf2f8);
-            }
-            if (column == 0 && !pageLabel.isEmpty()) {
-                font.drawPrepared(graphics, pageLabel, x + INSET, GUTTER + INSET + count * ROW_HEIGHT,
-                        TEXT_SIZE, 0xff80dcbf);
-            }
-            graphics.flush();
+    private Map<Region, List<String>> selectedRows(OverlaySettings settings) {
+        if (active == null) return Map.of();
+        if (active.equals(BuiltIn.SIMPLE.id())) {
+            return Map.of(Region.TOP_LEFT, join(latest, FPS, XYZ, BLOCK_POSITION, CHUNK_RELATIVE, FACING, BIOME));
+        }
+        if (active.equals(BuiltIn.PERFORMANCE.id())) {
+            return Map.of(Region.TOP_LEFT, join(latest, FPS, SERVER, RENDERED_CHUNKS, RENDERED_ENTITIES),
+                    Region.TOP_RIGHT, join(latest, MEMORY, CPU, DISPLAY, GPU));
+        }
+        if (active.equals(BuiltIn.WORLD.id())) {
+            return Map.of(Region.TOP_LEFT, join(latest, DIMENSION, XYZ, BLOCK_POSITION, CHUNK_POSITION,
+                            CHUNK_RELATIVE, FACING, LIGHT_LEVEL, HEIGHTMAPS, BIOME, DIFFICULTY, SPAWNING),
+                    Region.TOP_RIGHT, join(latest, TARGET_BLOCK, TARGET_FLUID, TARGET_ENTITY));
+        }
+        if (active.equals(BuiltIn.MODS.id())) {
+            return Map.of(Region.TOP_LEFT, latest.leftAddons(), Region.TOP_RIGHT, latest.rightAddons());
+        }
+        Tab tab = settings.customTab(active);
+        return tab == null ? Map.of() : customRows(tab, latest);
+    }
+
+    public void updateEditorPreview(Minecraft mc, GuiGraphics graphics) {
+        if (mc.level == null || mc.getCameraEntity() == null || mc.getConnection() == null
+                || mc.getDebugOverlay().showDebugScreen()) return;
+        samplingEditor = true;
+        try {
+            mc.getDebugOverlay().render(graphics);
+        } finally {
+            samplingEditor = false;
         }
     }
 
-    private static void wrap(ModernFont font, String row, int width, List<String> lines) {
-        String remaining = row;
-        while (font.width(remaining, TEXT_SIZE) > width) {
-            String fitted = font.fit(remaining, TEXT_SIZE, width);
-            int length = fitted.length() - 1;
-            if (length <= 0) break;
-            int whitespace = remaining.lastIndexOf(' ', length);
-            if (whitespace > length / 2) length = whitespace;
-            lines.add(remaining.substring(0, length).stripTrailing());
-            remaining = remaining.substring(length).stripLeading();
+    public List<String> previewLines(String entry, boolean inWorld) {
+        if (inWorld) return latest.groups().getOrDefault(entry, List.of());
+        return PreviewSamples.lines(entry);
+    }
+
+    public Bottoms bottoms(int height, int top) {
+        int bottom = height - ((chartFlags & 6) == 0 ? 0 : CHART_SPACE);
+        int right = bottom;
+        if ((chartFlags & 1) != 0) {
+            right = Math.min(bottom, height - (int) Math.ceil(416 / Minecraft.getInstance().getWindow().getGuiScale()));
         }
-        if (!remaining.isBlank()) lines.add(remaining);
+        return new Bottoms(Math.max(top, bottom), Math.max(top, right));
     }
 
-    private static String limitLength(String line) {
-        if (line.length() <= MAX_ROW_TEXT) return line;
-        int end = Character.isHighSurrogate(line.charAt(MAX_ROW_TEXT - 1)) ? MAX_ROW_TEXT - 1 : MAX_ROW_TEXT;
-        return line.substring(0, end) + "…";
+    public record Bottoms(int left, int right) {}
+
+    public void drawPreview(GuiGraphics graphics, OverlaySettings settings, Tab tab, int headerTop,
+                            Bottoms bottom, Map<Region, List<String>> rows, int page, int pages) {
+        drawHeader(graphics, settings, tab.id(), headerTop, pages == 1 ? null
+                : Component.translatable("f3ather.hud.page", page + 1, pages).getString());
+        drawRows(graphics, rows, headerTop + HudLayout.HEADER, bottom.left(), bottom.right(), page, true);
     }
 
-    public record Frame(AddonEntries.Column left, AddonEntries.Column right, OverlaySettings settings, int charts) {}
+    private void drawRows(GuiGraphics graphics, Map<Region, List<String>> rows, int top, int leftBottom,
+                          int rightBottom, int page, boolean fourCorners) {
+        Font font = Minecraft.getInstance().font;
+        for (Region region : Region.values()) {
+            var bounds = HudLayout.bounds(graphics.guiWidth(), top, region.left() ? leftBottom : rightBottom, region, rows, fourCorners);
+            var lines = HudLayout.page(rows.getOrDefault(region, List.of()), bounds, page);
+            if (lines.isEmpty()) continue;
+            int start = bounds.firstY(region.top(), lines.size());
+            graphics.enableScissor(fourCorners ? bounds.left() : 0, bounds.top(),
+                    fourCorners ? bounds.right() : graphics.guiWidth(), bounds.bottom());
+            for (int index = 0; index < lines.size(); index++) {
+                String line = lines.get(index);
+                if (line.isEmpty()) continue;
+                int width = text.width(font, line, TEXT);
+                int x = region.left() ? bounds.left() + 2 : bounds.right() - 2 - width;
+                int y = start + index * HudLayout.ROW_HEIGHT;
+                graphics.fill(x - 1, y - 1, x + width + 1, y + HudLayout.ROW_HEIGHT - 1, BACKGROUND);
+            }
+            for (int index = 0; index < lines.size(); index++) {
+                String line = lines.get(index);
+                if (line.isEmpty()) continue;
+                int width = text.width(font, line, TEXT);
+                int x = region.left() ? bounds.left() + 2 : bounds.right() - 2 - width;
+                text.draw(graphics, font, line, x, start + index * HudLayout.ROW_HEIGHT, TEXT);
+            }
+            graphics.disableScissor();
+        }
+    }
+
+    private static Map<Region, List<String>> customRows(Tab tab, Frame frame) {
+        var rows = new EnumMap<Region, List<String>>(Region.class);
+        for (Region area : Region.values()) {
+            rows.put(area, tab.entries(area).stream()
+                    .flatMap(id -> frame.groups().getOrDefault(id, List.of()).stream()).toList());
+        }
+        return rows;
+    }
+
+    private static List<String> join(Frame frame, VanillaEntry... entries) {
+        var result = new ArrayList<String>();
+        for (VanillaEntry entry : entries) result.addAll(frame.groups().getOrDefault(entry.id(), List.of()));
+        return result;
+    }
+
+    private record Frame(Map<String, List<String>> groups, List<String> leftAddons, List<String> rightAddons) {
+        private static final Frame EMPTY = new Frame(Map.of(), List.of(), List.of());
+    }
+
+    static final class SampleClock {
+        private int hz = -1;
+        private long next;
+
+        boolean due(long now, int frequency) {
+            if (hz == frequency && frequency != 0 && now - next < 0) return false;
+            if (hz != frequency || frequency == 0) next = now;
+            hz = frequency;
+            if (hz != 0) {
+                long interval = 1_000_000_000L / hz;
+                next += ((now - next) / interval + 1) * interval;
+            }
+            return true;
+        }
+
+        void invalidate() { hz = -1; }
+    }
 }

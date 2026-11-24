@@ -27,4 +27,14 @@ abstract class DebugOverlayProbe {
     private void f3atherFixture$end(GuiGraphics graphics, CallbackInfo callback) {
         FixtureClient.endOverlay();
     }
+
+    @Inject(method = "renderLines", at = @At("HEAD"))
+    private void f3atherFixture$beginText(GuiGraphics graphics, List<String> lines, boolean left, CallbackInfo callback) {
+        FixtureClient.startText();
+    }
+
+    @Inject(method = "renderLines", at = @At("RETURN"))
+    private void f3atherFixture$endText(GuiGraphics graphics, List<String> lines, boolean left, CallbackInfo callback) {
+        FixtureClient.endText();
+    }
 }

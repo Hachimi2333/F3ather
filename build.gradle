@@ -81,6 +81,7 @@ tasks.register('verifyOpenUi') {
 tasks.named('compileJava') { dependsOn('verifyOpenUi') }
 
 tasks.named('test', Test) {
+    workingDir = layout.buildDirectory.get().asFile
     useJUnitPlatform()
 }
 
@@ -91,6 +92,7 @@ neoForge {
     version = neoVersion
     addModdingDependenciesTo sourceSets.fixture
     addModdingDependenciesTo sourceSets.fixturePeer
+    addModdingDependenciesTo sourceSets.test
     mods {
         f3ather { sourceSet sourceSets.main }
         f3ather_fixture { sourceSet sourceSets.fixture }

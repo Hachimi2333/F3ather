@@ -5,7 +5,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.tutorial.TutorialSteps;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
@@ -36,16 +35,18 @@ public final class FixtureClient {
 
     private static final List<Long> FRAME_INTERVALS = new ArrayList<>();
     private static final List<Long> OVERLAY_TIMES = new ArrayList<>();
+    private static final List<Long> TEXT_TIMES = new ArrayList<>();
     private static long warmupAt;
     private static long sampleAt;
     private static long previousFrame;
     private static long start;
+    private static long textStart;
     private static long columnsCollected;
     private static int frames;
     private static int counter;
     private static boolean finished;
     private static boolean openingWorld;
-    private static boolean traditional;
+    private static int measurement;
     private static boolean checked;
     private static boolean rich;
     private static int uiTick;
@@ -64,8 +65,7 @@ public final class FixtureClient {
         verifyFresh(right);
         NetworkChecks.observe(event, Minecraft.getInstance());
         if (rich && Minecraft.getInstance().showOnlyReducedInfo()) {
-            String position = Component.translatable("f3ather.entry.xyz").getString();
-            if (left.stream().anyMatch(line -> line != null && line.startsWith(position + " ·"))) {
+            if (left.stream().anyMatch(line -> line != null && line.startsWith("XYZ: "))) {
                 throw new IllegalStateException("Restricted coordinates passed to DebugText");
             }
         }
@@ -135,10 +135,14 @@ public final class FixtureClient {
         }
         if (sampleAt == 0 || System.nanoTime() - sampleAt < SAMPLE_NANOS) return;
         if (!rich) {
-            finish(f3ather && !traditional ? "f3ather" : "traditional");
-            if (f3ather && auto && !traditional) {
-                traditional = true;
-                FixtureChecks.traditional();
+            finish(!f3ather ? "neoforge" : switch (measurement) {
+                case 0 -> "vanilla-tab-10hz";
+                case 1 -> "vanilla-tab-live";
+                default -> "compatibility";
+            });
+            if (f3ather && auto && measurement < 2) {
+                measurement++;
+                FixtureChecks.measure(measurement == 2, 0);
                 reset();
                 return;
             }
@@ -169,24 +173,30 @@ public final class FixtureClient {
             }
             case 40 -> {
                 FixtureChecks.capture("settings-zh");
+                FixtureChecks.openEditor();
+            }
+            case 46 -> {
+                FixtureChecks.capture("editor-zh");
                 mc.setScreen(null);
                 mc.getDebugOverlay().toggleFpsCharts();
             }
-            case 46 -> {
-                FixtureChecks.capture("hud-zh");
+            case 49 -> FixtureChecks.selectTab(mc, "mods");
+            case 51 -> {
+                FixtureChecks.capture("mods-zh");
                 FixtureChecks.pressDebugChord(mc, GLFW.GLFW_KEY_PAGE_DOWN);
             }
-            case 50 -> {
+            case 54 -> {
                 FixtureChecks.capture("page-zh");
+                FixtureChecks.selectTab(mc, "simple");
                 setReduced(mc, true);
             }
-            case 56 -> {
+            case 61 -> {
                 if (!mc.showOnlyReducedInfo()) throw new IllegalStateException("Server reduced rule did not reach client");
                 FixtureChecks.capture("reduced-zh");
                 mc.getDebugOverlay().toggleOverlay();
                 closedCounter = counter;
             }
-            case 62 -> {
+            case 68 -> {
                 if (closedCounter != counter) throw new IllegalStateException("DebugText ran with the overlay closed");
                 finished = true;
                 setReduced(mc, false);
@@ -209,6 +219,7 @@ public final class FixtureClient {
         frames = 0;
         FRAME_INTERVALS.clear();
         OVERLAY_TIMES.clear();
+        TEXT_TIMES.clear();
     }
 
     private static void updateMeasurement(long now) {
@@ -224,17 +235,25 @@ public final class FixtureClient {
     private static void finish(String mode) {
         Collections.sort(FRAME_INTERVALS);
         Collections.sort(OVERLAY_TIMES);
+        Collections.sort(TEXT_TIMES);
         double seconds = (previousFrame - sampleAt) / 1_000_000_000.0;
         LOGGER.info("F3ATHER_MEASUREMENT {}", String.format(Locale.ROOT,
-                "mode=%s seconds=%.2f frames=%d collections/column/s=%.2f hud_p50_ms=%.3f hud_p95_ms=%.3f frame_p50_ms=%.2f frame_p95_ms=%.2f",
+                "mode=%s seconds=%.2f frames=%d collections/column/s=%.2f hud_p50_ms=%.3f hud_p95_ms=%.3f text_column_p50_ms=%.3f text_column_p95_ms=%.3f frame_p50_ms=%.2f frame_p95_ms=%.2f",
                 mode, seconds, frames, columnsCollected / (2 * seconds), percentile(OVERLAY_TIMES, 0.50),
-                percentile(OVERLAY_TIMES, 0.95), percentile(FRAME_INTERVALS, 0.50), percentile(FRAME_INTERVALS, 0.95)));
+                percentile(OVERLAY_TIMES, 0.95), percentile(TEXT_TIMES, 0.50),
+                percentile(TEXT_TIMES, 0.95), percentile(FRAME_INTERVALS, 0.50), percentile(FRAME_INTERVALS, 0.95)));
     }
 
     private static double percentile(List<Long> values, double percentile) {
         if (values.isEmpty()) return Double.NaN;
         int index = Math.clamp((int) Math.ceil(values.size() * percentile) - 1, 0, values.size() - 1);
         return values.get(index) / 1_000_000.0;
+    }
+
+    public static void startText() { textStart = System.nanoTime(); }
+
+    public static void endText() {
+        if (sampleAt != 0 && !finished && !rich) TEXT_TIMES.add(System.nanoTime() - textStart);
     }
 
     public static void collectedColumn() {

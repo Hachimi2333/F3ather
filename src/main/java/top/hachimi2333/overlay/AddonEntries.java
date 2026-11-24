@@ -23,6 +23,13 @@ public final class AddonEntries {
 
     private final Map<String, Entry> entries = new LinkedHashMap<>();
     private Map<String, Source> sources;
+    private final ClassValue<Source> directSources = new ClassValue<>() {
+        @Override
+        protected Source computeValue(Class<?> caller) {
+            Source source = sourceOf(caller);
+            return source == null ? UNKNOWN : source;
+        }
+    };
 
     public List<Entry> entries() {
         return List.copyOf(entries.values());
@@ -39,8 +46,8 @@ public final class AddonEntries {
                 }
             }
         }
-        Source direct = sourceOf(caller);
-        if (direct != null) return direct;
+        Source direct = directSources.get(caller);
+        if (direct != UNKNOWN) return direct;
         return WALKER.walk(frames -> frames.skip(1)
                 .takeWhile(frame -> !frame.getClassName().equals("net.neoforged.bus.EventBus"))
                 .limit(24)
@@ -55,8 +62,8 @@ public final class AddonEntries {
                 || source.id().equals("minecraft") || source.id().equals("neoforge") ? null : source;
     }
 
-    public Column column(boolean left, List<Row> rows, boolean trackSources) {
-        return new Column(left, rows, trackSources ? this::findSource : null);
+    public Column column(boolean left, List<Row> rows) {
+        return new Column(left, rows, this::findSource);
     }
 
     private Entry discover(boolean left, Map<String, Integer> occurrences, Source source, String text) {
@@ -77,27 +84,30 @@ public final class AddonEntries {
         if (previous != null) return previous;
         String example = stripFormatting(text);
         if (example.length() > 150) example = example.substring(0, 150);
-        Entry entry = new Entry(id, source, name, example, label == null ? prefix : prefix + label, prefix);
+        Entry entry = new Entry(id, source, name, example);
         entries.put(id, entry);
         return entry;
     }
 
-    public void collect(Column column, Map<String, List<String>> grouped, OverlaySettings settings) {
-        Map<String, Integer> occurrences = column.source == null ? null : new HashMap<>();
+    public boolean collect(Column column, Map<String, List<String>> grouped, List<String> appended) {
+        Map<String, Integer> occurrences = new HashMap<>();
+        boolean detected = false;
         for (String text : column) {
-            if (text == null || text.isBlank()) continue;
+            if (text == null) continue;
             Row base = column.original.get(text);
             if (base != null) {
-                grouped.computeIfAbsent(base.id(), ignored -> new ArrayList<>()).add(text);
+                if (base.id() != null && !text.isEmpty()) {
+                    grouped.computeIfAbsent(base.id(), ignored -> new ArrayList<>()).add(text);
+                }
                 continue;
             }
-            if (occurrences == null) continue;
-            Source source = column.added.getOrDefault(text, UNKNOWN);
-            Entry entry = discover(column.left, occurrences, source, text);
-            if (settings.showsAddon(entry.id(), entry.legacyId(), entry.legacyOther())) {
-                grouped.computeIfAbsent(entry.id(), ignored -> new ArrayList<>()).add(text);
-            }
+            appended.add(text);
+            if (text.isBlank()) continue;
+            detected = true;
+            Entry entry = discover(column.left, occurrences, column.added.getOrDefault(text, UNKNOWN), text);
+            grouped.computeIfAbsent(entry.id(), ignored -> new ArrayList<>()).add(text);
         }
+        return detected;
     }
 
     private static String findLabel(String line) {
@@ -128,7 +138,9 @@ public final class AddonEntries {
 
     public record Row(String id, String text) {}
     public record Source(String id, String name) {}
-    public record Entry(String id, Source source, String name, String sample, String legacyId, String legacyOther) {}
+    public record Entry(String id, Source source, String name, String sample) {
+        public String title() { return name.isEmpty() ? sample : name; }
+    }
 
     public static final class Column extends AbstractList<String> implements RandomAccess {
         private final boolean left;
@@ -143,8 +155,8 @@ public final class AddonEntries {
             this.source = source;
             lines = new ArrayList<>(rows.size());
             for (Row row : rows) {
-                String value = new String(row.text());
-                original.put(value, row);
+                String value = row.text() == null ? null : new String(row.text());
+                if (value != null) original.put(value, row);
                 lines.add(value);
             }
         }
@@ -161,7 +173,10 @@ public final class AddonEntries {
             if (value != null && !original.containsKey(value) && !added.containsKey(value)) {
                 Row row = original.get(old);
                 if (row != null) original.put(value, row);
-                else if (source != null) added.put(value, resolve(WALKER.getCallerClass()));
+                else if (source != null) {
+                    Source owner = added.get(old);
+                    added.put(value, owner == null ? resolve(WALKER.getCallerClass()) : owner);
+                }
             }
             return old;
         }
@@ -178,7 +193,9 @@ public final class AddonEntries {
         }
 
         private void insert(int index, String value, Class<?> caller) {
-            if (added.containsKey(value)) value = new String(value);
+            if ((added.containsKey(value) || original.containsKey(value)) && containsIdentity(value)) {
+                value = new String(value);
+            }
             lines.add(index, value);
             modCount++;
             if (caller != null) record(value, () -> resolve(caller));
@@ -205,7 +222,7 @@ public final class AddonEntries {
             Source owner = resolve(caller);
             for (int i = 0; i < copy.size(); i++) {
                 String value = copy.get(i);
-                if (added.containsKey(value)) {
+                if ((added.containsKey(value) || original.containsKey(value)) && containsIdentity(value)) {
                     value = new String(value);
                     copy.set(i, value);
                 }
@@ -228,6 +245,11 @@ public final class AddonEntries {
             if (from == to) return;
             lines.subList(from, to).clear();
             modCount++;
+        }
+
+        private boolean containsIdentity(String value) {
+            for (String line : lines) if (line == value) return true;
+            return false;
         }
 
         private void record(String value, Supplier<Source> owner) {
