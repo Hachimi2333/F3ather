@@ -28,6 +28,7 @@ import java.util.List;
 @Mixin(DebugScreenOverlay.class)
 abstract class DebugScreenOverlayMixin {
     @Shadow @Final private Minecraft minecraft;
+    @Shadow private boolean renderDebug;
     @Shadow private boolean renderProfilerChart;
     @Shadow private boolean renderFpsCharts;
     @Shadow private boolean renderNetworkCharts;
@@ -43,10 +44,9 @@ abstract class DebugScreenOverlayMixin {
     @Unique private AddonEntries.Column f3ather$left;
     @Unique private AddonEntries.Column f3ather$right;
 
-    @Inject(method = "toggleOverlay", at = @At("HEAD"))
+    @Inject(method = "toggleOverlay", at = @At("TAIL"))
     private void f3ather$toggle(CallbackInfo callback) {
-        F3ather.HUD.invalidate();
-        F3ather.HUD.resetMotion();
+        F3ather.HUD.toggle(renderDebug && !minecraft.options.hideGui, F3ather.settings());
     }
 
     @Inject(method = "reset", at = @At("HEAD"))
@@ -131,9 +131,7 @@ abstract class DebugScreenOverlayMixin {
         minecraft.getProfiler().push("f3ather_text");
         try {
             if (f3ather$originalRows) {
-                if (left && f3ather$position.headerHeight() != 0) {
-                    F3ather.HUD.drawHeader(graphics, f3ather$settings, BuiltIn.VANILLA.id(), f3ather$position.headerY(), null);
-                }
+                if (left) F3ather.HUD.presentVanilla(graphics, f3ather$settings, f3ather$position, f3ather$left, f3ather$right);
                 f3ather$drawVanillaColumn(graphics, lines, left, original);
             } else if (left) {
                 F3ather.HUD.drawSelected(graphics, f3ather$settings, f3ather$position);

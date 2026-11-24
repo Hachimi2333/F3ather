@@ -47,6 +47,7 @@ public final class OverlayHud {
     private int page;
     private int pageCount = 1;
     private Frame latest = Frame.EMPTY;
+    private PresentedFrame presented;
 
     public OverlayHud(AddonEntries addons) { this.addons = addons; }
 
@@ -134,7 +135,23 @@ public final class OverlayHud {
         }
     }
 
-    public void resetMotion() { motion.reset(); }
+    public void resetMotion() {
+        motion.reset();
+        presented = null;
+    }
+
+    public void toggle(boolean visible, OverlaySettings settings) {
+        invalidate();
+        if (settings.compatibility()) {
+            resetMotion();
+        } else if (visible) {
+            motion.open(System.nanoTime(), settings.disableAnimations());
+        } else if (presented != null) {
+            motion.close(System.nanoTime(), settings.disableAnimations());
+        } else {
+            resetMotion();
+        }
+    }
 
     public HudLayout.Position position(OverlaySettings settings, int width) {
         return motion.position(System.nanoTime(), settings.disableAnimations(), width);
@@ -214,11 +231,55 @@ public final class OverlayHud {
         pageCount = supportsPages()
                 ? HudLayout.pageCount(graphics.guiWidth(), top, bottoms.left(), bottoms.right(), rows, custom) : 1;
         page = Math.min(page, pageCount - 1);
-        if (position.headerHeight() != 0) {
-            drawHeader(graphics, settings, active, position.headerY(), pageCount == 1 ? null
-                    : Component.translatable("f3ather.hud.page", page + 1, pageCount).getString());
-        }
+        presented = new PresentedFrame(settings, active, rows, page, pageCount, custom);
+        drawPresentedHeader(graphics, presented, position);
         drawRows(graphics, rows, position, bottoms, page, custom);
+    }
+
+    public void presentVanilla(GuiGraphics graphics, OverlaySettings settings, HudLayout.Position position,
+                               List<String> leftLines, List<String> rightLines) {
+        var rows = Map.<Region, List<String>>of(Region.TOP_LEFT, new ArrayList<>(leftLines),
+                Region.TOP_RIGHT, new ArrayList<>(rightLines));
+        presented = new PresentedFrame(settings, BuiltIn.VANILLA.id(), rows, 0, 1, false);
+        drawPresentedHeader(graphics, presented, position);
+    }
+
+    public void drawExit(Minecraft mc, GuiGraphics graphics, OverlaySettings settings) {
+        if (presented == null || mc.getDebugOverlay().showDebugScreen()) return;
+        if (settings.compatibility() || mc.options.hideGui || mc.level == null || mc.level != level
+                || mc.getConnection() != connection || mc.getCameraEntity() != camera
+                || mc.showOnlyReducedInfo() != reduced) {
+            resetMotion();
+            return;
+        }
+        int width = graphics.guiWidth();
+        var position = motion.exitPosition(System.nanoTime(), settings.disableAnimations(), width);
+        if (position == null) {
+            presented = null;
+            return;
+        }
+        drawPresentedHeader(graphics, presented, position);
+        var rows = presented.rows();
+        if (BuiltIn.VANILLA.id().equals(presented.tab())) {
+            for (Region region : List.of(Region.TOP_LEFT, Region.TOP_RIGHT)) {
+                boolean isLeft = region.left();
+                int offset = position.columnX(isLeft);
+                if (Math.abs(offset) >= width) continue;
+                graphics.enableScissor(Math.max(0, offset), 0, Math.min(width, width + offset), graphics.guiHeight());
+                drawTextRows(graphics, rows.get(region), isLeft, offset, width + offset, position.headerHeight() + 2);
+                graphics.disableScissor();
+            }
+        } else {
+            drawRows(graphics, rows, position, bottoms(graphics.guiHeight(), position.layoutHeader()),
+                    presented.page(), presented.custom());
+        }
+    }
+
+    private void drawPresentedHeader(GuiGraphics graphics, PresentedFrame frame, HudLayout.Position position) {
+        if (position.headerHeight() != 0) {
+            drawHeader(graphics, frame.settings(), frame.tab(), position.headerY(), frame.pages() == 1 ? null
+                    : Component.translatable("f3ather.hud.page", frame.page() + 1, frame.pages()).getString());
+        }
     }
 
     private Map<Region, List<String>> selectedRows(OverlaySettings settings) {
@@ -278,7 +339,6 @@ public final class OverlayHud {
 
     private void drawRows(GuiGraphics graphics, Map<Region, List<String>> rows, HudLayout.Position position,
                           Bottoms layoutBottoms, int page, boolean fourCorners) {
-        Font font = Minecraft.getInstance().font;
         int width = graphics.guiWidth();
         int visibleHeader = position.headerHeight();
         int layoutHeader = position.layoutHeader();
@@ -298,21 +358,26 @@ public final class OverlayHud {
             if (clipRight <= clipLeft || visible.bottom() <= visible.top()) continue;
             int start = bounds.firstY(region.top(), lines.size()) + offsetY;
             graphics.enableScissor(clipLeft, visible.top(), clipRight, visible.bottom());
-            for (int index = 0; index < lines.size(); index++) {
-                String line = lines.get(index);
-                if (line.isEmpty()) continue;
-                int lineWidth = text.width(font, line, TEXT);
-                int x = offsetX + (left ? bounds.left() + 2 : bounds.right() - 2 - lineWidth);
-                int y = start + index * HudLayout.ROW_HEIGHT;
-                graphics.fill(x - 1, y - 1, x + lineWidth + 1, y + HudLayout.ROW_HEIGHT - 1, BACKGROUND);
-            }
-            for (int index = 0; index < lines.size(); index++) {
-                String line = lines.get(index);
-                if (line.isEmpty()) continue;
-                int x = offsetX + (left ? bounds.left() + 2 : bounds.right() - 2 - text.width(font, line, TEXT));
-                text.draw(graphics, font, line, x, start + index * HudLayout.ROW_HEIGHT, TEXT);
-            }
+            drawTextRows(graphics, lines, left, bounds.left() + offsetX, bounds.right() + offsetX, start);
             graphics.disableScissor();
+        }
+    }
+
+    private void drawTextRows(GuiGraphics graphics, List<String> lines, boolean left, int leftEdge, int rightEdge, int start) {
+        Font font = Minecraft.getInstance().font;
+        for (int index = 0; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (line == null || line.isEmpty()) continue;
+            int lineWidth = text.width(font, line, TEXT);
+            int x = left ? leftEdge + 2 : rightEdge - 2 - lineWidth;
+            int y = start + index * HudLayout.ROW_HEIGHT;
+            graphics.fill(x - 1, y - 1, x + lineWidth + 1, y + HudLayout.ROW_HEIGHT - 1, BACKGROUND);
+        }
+        for (int index = 0; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (line == null || line.isEmpty()) continue;
+            int x = left ? leftEdge + 2 : rightEdge - 2 - text.width(font, line, TEXT);
+            text.draw(graphics, font, line, x, start + index * HudLayout.ROW_HEIGHT, TEXT);
         }
     }
 
@@ -334,6 +399,9 @@ public final class OverlayHud {
     private record Frame(Map<String, List<String>> groups, List<String> leftAddons, List<String> rightAddons) {
         private static final Frame EMPTY = new Frame(Map.of(), List.of(), List.of());
     }
+
+    private record PresentedFrame(OverlaySettings settings, String tab, Map<Region, List<String>> rows,
+                                  int page, int pages, boolean custom) {}
 
     static final class SampleClock {
         private int hz = -1;

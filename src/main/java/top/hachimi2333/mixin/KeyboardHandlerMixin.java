@@ -27,6 +27,12 @@ abstract class KeyboardHandlerMixin {
     @Unique private boolean f3ather$f3Down;
     @Unique private final Set<Integer> f3ather$ownedKeys = new HashSet<>();
 
+    @Inject(method = "keyPress", at = @At("RETURN"))
+    private void f3ather$hideGui(long window, int key, int scan, int action, int modifiers, CallbackInfo callback) {
+        if (window == minecraft.getWindow().getWindow() && key == GLFW.GLFW_KEY_F1
+                && action == GLFW.GLFW_PRESS && minecraft.options.hideGui) F3ather.HUD.resetMotion();
+    }
+
     @Inject(method = "keyPress", at = @At("HEAD"), cancellable = true)
     private void f3ather$keys(long window, int key, int scan, int action, int modifiers, CallbackInfo callback) {
         if (window != minecraft.getWindow().getWindow()) return;

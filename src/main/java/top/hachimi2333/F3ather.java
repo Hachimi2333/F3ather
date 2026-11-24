@@ -1,5 +1,6 @@
 package top.hachimi2333;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -8,7 +9,10 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
+import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import net.neoforged.neoforge.common.NeoForge;
 import top.hachimi2333.config.ClientConfig;
 import top.hachimi2333.config.F3atherScreen;
 import top.hachimi2333.overlay.AddonEntries;
@@ -28,6 +32,11 @@ public final class F3ather {
         modBus.addListener((ModConfigEvent.Reloading event) -> ClientConfig.reload(event));
         modBus.addListener((RegisterClientReloadListenersEvent event) ->
                 event.registerReloadListener((ResourceManagerReloadListener) manager -> HUD.reloadResources()));
+        NeoForge.EVENT_BUS.addListener((RenderGuiLayerEvent.Post event) -> {
+            if (VanillaGuiLayers.DEBUG_OVERLAY.equals(event.getName())) {
+                HUD.drawExit(Minecraft.getInstance(), event.getGuiGraphics(), settings());
+            }
+        });
         container.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC, ClientConfig.FILE_NAME);
         Supplier<IConfigScreenFactory> factory = () -> (ignored, parent) -> new F3atherScreen(parent);
         container.registerExtensionPoint(IConfigScreenFactory.class, factory);

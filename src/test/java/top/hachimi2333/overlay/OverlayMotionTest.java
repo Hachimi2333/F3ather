@@ -79,4 +79,41 @@ final class OverlayMotionTest {
         assertEquals(new HudLayout.Position(0, 0, 0), motion.position(9080 * MS, true, WIDTH));
         assertEquals(0, motion.position(9081 * MS, false, WIDTH).headerHeight());
     }
+
+    @Test
+    void closingSlidesOutAndAllowsReopeningMidway() {
+        var motion = new OverlayMotion();
+        motion.open(0, false);
+        motion.close(1000 * MS, false);
+        assertEquals(HudLayout.Position.EXPANDED, motion.exitPosition(1000 * MS, false, WIDTH));
+        var exiting = motion.exitPosition(1150 * MS, false, WIDTH);
+        assertTrue(exiting.columnDistance() > 0);
+        assertTrue(exiting.headerHeight() < HudLayout.HEADER);
+        assertEquals(HudLayout.HEADER, exiting.layoutHeader());
+
+        motion.open(1150 * MS, false);
+        assertEquals(exiting, motion.position(1150 * MS, false, WIDTH));
+        assertNull(motion.exitPosition(1151 * MS, false, WIDTH));
+        var reopening = motion.position(1200 * MS, false, WIDTH);
+        motion.close(1200 * MS, false);
+        assertEquals(reopening, motion.exitPosition(1200 * MS, false, WIDTH));
+        assertNull(motion.exitPosition(1400 * MS, false, WIDTH));
+    }
+
+    @Test
+    void closingKeepsAnIdleHeaderHiddenAndDisablingMotionSkipsTheExit() {
+        var motion = new OverlayMotion();
+        motion.open(0, false);
+        motion.close(5000 * MS, false);
+        var exiting = motion.exitPosition(5100 * MS, false, WIDTH);
+        assertEquals(0, exiting.headerHeight());
+        assertEquals(0, exiting.layoutHeader());
+        assertNull(motion.exitPosition(5101 * MS, true, WIDTH));
+
+        motion.open(5200 * MS, true);
+        motion.close(5300 * MS, true);
+        assertNull(motion.exitPosition(5300 * MS, true, WIDTH));
+        motion.open(5400 * MS, false);
+        assertEquals(WIDTH, motion.position(5400 * MS, false, WIDTH).columnDistance());
+    }
 }
