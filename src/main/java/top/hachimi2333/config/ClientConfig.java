@@ -23,7 +23,7 @@ public final class ClientConfig {
     public static final String FILE_NAME = "f3ather-tabs.toml";
     public static final ModConfigSpec SPEC;
     private static final Gson JSON = new Gson();
-    private static final ModConfigSpec.IntValue REFRESH;
+    private static final ModConfigSpec.ConfigValue<Integer> REFRESH;
     private static final ModConfigSpec.BooleanValue COMPATIBILITY;
     private static final ModConfigSpec.BooleanValue DISABLE_ANIMATIONS;
     private static final EnumMap<BuiltIn, ModConfigSpec.BooleanValue> BUILT_INS = new EnumMap<>(BuiltIn.class);
@@ -32,8 +32,9 @@ public final class ClientConfig {
 
     static {
         var builder = new ModConfigSpec.Builder();
-        REFRESH = builder.comment("Text samples per second. Zero samples every frame.")
-                .defineInRange("refreshHz", 10, 0, 60);
+        REFRESH = builder.comment("Text samples per second. Choose 1, 5, 10, 20, or 0 (every frame).")
+                .define("refreshHz", OverlaySettings.DEFAULT_REFRESH_HZ,
+                        value -> value instanceof Integer hz && OverlaySettings.REFRESH_PRESETS.contains(hz));
         COMPATIBILITY = builder.define("compatibility", false);
         DISABLE_ANIMATIONS = builder.define("disableAnimations", OverlaySettings.DEFAULT.disableAnimations());
         builder.push("builtIn");

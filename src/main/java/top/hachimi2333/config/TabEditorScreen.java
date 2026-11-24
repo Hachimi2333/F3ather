@@ -2,7 +2,6 @@ package top.hachimi2333.config;
 
 import com.nstut.openui.api.UIComponent;
 import com.nstut.openui.api.Ui;
-import com.nstut.openui.api.UiRender;
 import com.nstut.openui.input.EventType;
 import com.nstut.openui.input.PointerEvent;
 import com.nstut.openui.layout.Alignment;
@@ -241,7 +240,7 @@ public final class TabEditorScreen extends UiScreen {
             int boxWidth = font.width(title) + 12;
             int x = Math.clamp(mouseX + 8, 0, Math.max(0, width - boxWidth));
             int y = Math.clamp(mouseY + 8, 0, Math.max(0, TabEditorScreen.this.height - 15));
-            UiRender.roundedRect(graphics, x, y, boxWidth, 15, 3, SURFACE);
+            graphics.fill(x, y, x + boxWidth, y + 15, SURFACE);
             graphics.drawString(font, title, x + 6, y + 4, TEXT, false);
         }
 

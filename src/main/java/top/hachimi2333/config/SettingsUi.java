@@ -3,7 +3,6 @@ package top.hachimi2333.config;
 import com.nstut.openui.api.ButtonWidget;
 import com.nstut.openui.api.UIComponent;
 import com.nstut.openui.api.Ui;
-import com.nstut.openui.api.UiRender;
 import com.nstut.openui.controls.Card;
 import com.nstut.openui.controls.TextField;
 import com.nstut.openui.state.Signal;
@@ -12,6 +11,8 @@ import com.nstut.openui.theme.Theme;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+
+import java.util.function.Consumer;
 
 final class SettingsUi {
     static final int BACKGROUND = 0xff17181a;
@@ -33,12 +34,16 @@ final class SettingsUi {
                     DIVIDER, DIVIDER, MUTED, ACCENT, 0xffadc9bb, SELECTED,
                     DANGER, DANGER, 0xff4d3030, ACCENT, ACCENT, ACCENT, ACCENT, SELECTED,
                     BACKGROUND, TEXT, MUTED, DISABLED, SELECTED, 0x00000000),
-            DARK.spacing(), DARK.radii(), DARK.durations(), false);
+            DARK.spacing(), new Theme.Radii(0, 0, 0), DARK.durations(),
+            DARK.buttonTheme(), DARK.textFieldTheme(), new Theme.CardTheme(0, DARK.cardTheme().padding(), false),
+            new Theme.TooltipTheme(0, DARK.tooltipTheme().paddingH(), DARK.tooltipTheme().paddingV()),
+            new Theme.DialogTheme(0, DARK.dialogTheme().padding(), DARK.dialogTheme().minWidth(),
+                    DARK.dialogTheme().minHeight()), DARK.tableTheme(), DARK.toastTheme(), false);
 
     private SettingsUi() {}
 
     static Card panel(UIComponent content, int padding) {
-        return Ui.card(content).padding(padding).radius(4).elevated(false).outlined(true);
+        return Ui.card(content).padding(padding).radius(0).elevated(false).outlined(true);
     }
 
     static Button button(Component label, Runnable action) {
@@ -53,6 +58,25 @@ final class SettingsUi {
 
     static Button searchResult(String title, String owner, Runnable action) {
         return new Button(Component.literal(title), action, null, owner).leftAligned();
+    }
+
+    static Button dropdown(Component title) {
+        var button = button(title, () -> {}).leftAligned().filled();
+        button.dropdown = true;
+        return button;
+    }
+
+    static Button option(Component title, Runnable action) {
+        return button(title, action).leftAligned();
+    }
+
+    static UIComponent toggle(Component label, boolean value, Consumer<Boolean> onChange) {
+        return new Toggle(label, value, onChange).width(24);
+    }
+
+    static void outline(GuiGraphics graphics, int x, int y, int width, int height, int fill, int border) {
+        graphics.fill(x, y, x + width, y + height, fill);
+        graphics.renderOutline(x, y, width, height, border);
     }
 
     private static int baseline(Font font, int y, int height) {
@@ -99,6 +123,7 @@ final class SettingsUi {
         private boolean selected;
         private boolean filled;
         private boolean destructive;
+        private boolean dropdown;
 
         Button(Component label, Runnable action, Icon icon, String detail) {
             super(label);
@@ -130,7 +155,7 @@ final class SettingsUi {
 
         @Override
         public int preferredWidth(Font font) {
-            return icon == null ? font.width(getLabel()) + 16 : CONTROL_HEIGHT;
+            return icon == null ? font.width(getLabel()) + (dropdown ? 24 : 16) : CONTROL_HEIGHT;
         }
 
         @Override
@@ -140,13 +165,13 @@ final class SettingsUi {
             boolean hover = active && isHovered();
             int color = !active ? DISABLED : selected ? ACCENT : destructive ? DANGER : TEXT;
             int fill = selected ? SELECTED : hover ? HOVER : filled ? DIVIDER : SURFACE;
-            if (isFocused()) UiRender.roundedOutline(graphics, x, y, width, height, 3, fill, ACCENT);
-            else if (selected || hover || filled) UiRender.roundedRect(graphics, x, y, width, height, 3, fill);
+            if (isFocused()) SettingsUi.outline(graphics, x, y, width, height, fill, ACCENT);
+            else if (selected || hover || filled) graphics.fill(x, y, x + width, y + height, fill);
             if (icon != null) {
                 icon.draw(graphics, x + (width - ICON_SIZE) / 2, y + (height - ICON_SIZE) / 2, color);
                 return;
             }
-            int available = Math.max(0, width - 16);
+            int available = Math.max(0, width - (dropdown ? 24 : 16));
             String suffix = ellipsize(font, detail, available / 3);
             int detailWidth = suffix.isEmpty() ? 0 : font.width(suffix) + 8;
             String title = ellipsize(font, getLabel().getString(), available - detailWidth);
@@ -154,6 +179,38 @@ final class SettingsUi {
             int labelX = leftAligned ? x + 8 : x + (width - font.width(title)) / 2;
             graphics.drawString(font, title, labelX, baseline, color, false);
             if (detailWidth > 0) graphics.drawString(font, suffix, x + width - detailWidth, baseline, MUTED, false);
+            if (dropdown) {
+                int arrow = x + width - 10;
+                int middle = y + height / 2 - 1;
+                for (int step = 0; step < 3; step++) {
+                    graphics.fill(arrow + step, middle + step, arrow + 5 - step, middle + step + 1, color);
+                }
+            }
+        }
+    }
+
+    private static final class Toggle extends ButtonWidget {
+        private boolean value;
+
+        Toggle(Component label, boolean value, Consumer<Boolean> onChange) {
+            super(label);
+            this.value = value;
+            height(CONTROL_HEIGHT);
+            onPress(() -> {
+                this.value = !this.value;
+                onChange.accept(this.value);
+                invalidatePaint();
+            });
+        }
+
+        @Override
+        public void render(GuiGraphics graphics, Font font, int mouseX, int mouseY, float delta) {
+            if (!visible) return;
+            int top = y + (height - 12) / 2;
+            SettingsUi.outline(graphics, x + 1, top, width - 2, 12, value ? ACCENT : INPUT,
+                    isFocused() ? TEXT : isHovered() || value ? ACCENT : DIVIDER);
+            int handle = value ? x + width - 10 : x + 3;
+            graphics.fill(handle, top + 3, handle + 7, top + 9, value ? INPUT : MUTED);
         }
     }
 
@@ -190,7 +247,7 @@ final class SettingsUi {
         @Override
         public void render(GuiGraphics graphics, Font font, int mouseX, int mouseY, float delta) {
             if (!visible) return;
-            UiRender.roundedOutline(graphics, x, y, width, height, 3, INPUT, isFocused() ? ACCENT : DIVIDER);
+            outline(graphics, x, y, width, height, INPUT, isFocused() ? ACCENT : DIVIDER);
             getEditBox().render(graphics, mouseX, mouseY, delta);
         }
     }

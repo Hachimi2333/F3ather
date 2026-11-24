@@ -4,18 +4,20 @@ import com.nstut.openui.api.Divider;
 import com.nstut.openui.api.UIComponent;
 import com.nstut.openui.api.Ui;
 import com.nstut.openui.controls.Dialog;
+import com.nstut.openui.controls.IconWidget;
+import com.nstut.openui.controls.Popover;
 import com.nstut.openui.controls.ScrollView;
 import com.nstut.openui.layout.Alignment;
 import com.nstut.openui.minecraft.UiScreen;
 import com.nstut.openui.overlay.OverlayHandle;
-import com.nstut.openui.state.Signal;
 import com.nstut.openui.state.Signals;
 import com.nstut.openui.theme.TextStyle;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
+import top.hachimi2333.overlay.OverlaySettings;
 import top.hachimi2333.overlay.OverlaySettings.BuiltIn;
 import top.hachimi2333.overlay.OverlaySettings.Tab;
 
@@ -24,13 +26,11 @@ import java.util.function.Consumer;
 import static top.hachimi2333.config.SettingsUi.*;
 
 public final class F3atherScreen extends UiScreen {
-    private static final ResourceLocation LOGO = ResourceLocation.fromNamespaceAndPath("f3ather", "textures/gui/logo.png");
     private static final int HEADER = 26;
     private final Screen parent;
     private ScrollView tabs;
     private double scroll;
-    private Signal<Double> rate;
-    private int savedRate;
+    private OverlayHandle refreshMenu;
     private OverlayHandle nameDialog;
     private Runnable submitName;
 
@@ -54,7 +54,10 @@ public final class F3atherScreen extends UiScreen {
         int top = uiTop();
         int pad = padding();
         int dividerX = left + pad + preferencesWidth() + gutter();
-        graphics.fill(0, 0, width, height, BACKGROUND);
+        if (minecraft.level == null) renderPanorama(graphics, delta);
+        graphics.flush();
+        renderBlurredBackground(delta);
+        graphics.fill(0, 0, width, height, 0x4017181a);
         graphics.fill(left, top, left + uiWidth(), top + uiHeight(), SURFACE);
         graphics.renderOutline(left, top, uiWidth(), uiHeight(), DIVIDER);
         graphics.fill(dividerX, top + pad + HEADER + 8, dividerX + 1, top + uiHeight() - pad, DIVIDER);
@@ -64,19 +67,14 @@ public final class F3atherScreen extends UiScreen {
     protected UIComponent buildUI() {
         uiRuntime().theme(THEME);
         var settings = ClientConfig.current();
-        savedRate = settings.refreshHz();
-        rate = Signals.of(savedRate == 0 ? 61.0 : (double) savedRate);
-        var title = Ui.row(Ui.icon(LOGO, 0, 0, 16, 16).size(16),
+        var title = Ui.row(IconWidget.texture("f3ather", "textures/gui/logo.png", 16, 16).size(16),
                 Ui.text(Component.literal("F3ather")).style(TextStyle.TITLE.withColor(TEXT)).flex(),
                 button(label("back"), this::onClose))
                 .gap(6).align(Alignment.CENTER).fillWidth().height(HEADER);
-        var refresh = Ui.row(Ui.text(label("refresh")).color(TEXT).ellipsis().flex(),
-                Ui.text(() -> sliderHz() == 0 ? label("every_frame") : label("hz", sliderHz()))
-                        .color(MUTED))
-                .gap(3).align(Alignment.CENTER).height(17).fillWidth();
         var preferences = Ui.column(
                 Ui.text(label("general")).style(TextStyle.HEADING.withColor(TEXT)).height(23),
-                refresh, Ui.slider(rate, 1, 61).fillWidth().height(14),
+                Ui.text(label("refresh")).color(TEXT).ellipsis().height(17),
+                refreshRate(settings.refreshHz()),
                 preference("compatibility", settings.compatibility(),
                         value -> ClientConfig.save(ClientConfig.current().withCompatibility(value))),
                 preference("disable_animations", settings.disableAnimations(),
@@ -109,19 +107,57 @@ public final class F3atherScreen extends UiScreen {
             row.addChild(icon(label("rename"), Icon.RENAME, () -> editName(tab.id())));
             row.addChild(icon(label("delete"), Icon.DELETE, () -> delete(tab)).destructive());
         }
-        row.addChild(toggle(enabled, onToggle));
+        row.addChild(toggle(name, enabled, onToggle));
         return Ui.column(row.height(25), new Divider(DIVIDER).fillWidth()).fillWidth();
     }
 
     private static UIComponent preference(String key, boolean enabled, Consumer<Boolean> onToggle) {
-        return Ui.row(Ui.text(label(key)).color(TEXT).wrap().maxLines(2).ellipsis().flex(), toggle(enabled, onToggle))
+        var title = label(key);
+        return Ui.row(Ui.text(title).color(TEXT).wrap().maxLines(2).ellipsis().flex(), toggle(title, enabled, onToggle))
                 .gap(4).align(Alignment.CENTER).height(24).fillWidth();
     }
 
-    private static UIComponent toggle(boolean startingValue, Consumer<Boolean> onChange) {
-        var state = Signals.of(startingValue);
-        state.subscribe(onChange);
-        return Ui.toggle(state).width(24);
+    private UIComponent refreshRate(int hz) {
+        var anchor = dropdown(rateLabel(hz));
+        anchor.fillWidth();
+        anchor.onPress(() -> {
+            if (refreshMenu != null && refreshMenu.isOpen()) {
+                refreshMenu.close();
+                return;
+            }
+            var list = Ui.column().fillWidth();
+            Button selected = null;
+            int current = ClientConfig.current().refreshHz();
+            for (int preset : OverlaySettings.REFRESH_PRESETS) {
+                var option = option(rateLabel(preset), () -> {
+                    ClientConfig.save(ClientConfig.current().withRefresh(preset));
+                    anchor.setLabel(rateLabel(preset));
+                    refreshMenu.close();
+                    anchor.requestFocus();
+                });
+                option.fillWidth();
+                if (preset == current) {
+                    option.selected(true);
+                    selected = option;
+                }
+                list.addChild(option);
+            }
+            var menu = new Popover(anchor, list) {
+                @Override
+                public void render(GuiGraphics graphics, Font font, int mouseX, int mouseY, float delta) {
+                    if (!visible) return;
+                    outline(graphics, x, y, width, height, SURFACE, DIVIDER);
+                    renderChildren(graphics, font, mouseX, mouseY, delta);
+                }
+            };
+            refreshMenu = menu.matchAnchorWidth().offset(2).show(uiRuntime().overlays());
+            if (selected != null) uiRuntime().scheduleFrame(selected, selected::requestFocus);
+        });
+        return anchor;
+    }
+
+    private static Component rateLabel(int hz) {
+        return hz == 0 ? label("unlimited") : label("hz", hz);
     }
 
     private void editName(String id) {
@@ -188,42 +224,13 @@ public final class F3atherScreen extends UiScreen {
         rebuildUI();
     }
 
-    private int sliderHz() {
-        int value = (int) Math.round(rate.get());
-        return value == 61 ? 0 : value;
-    }
-
-    private void saveRate() {
-        if (rate == null) return;
-        int value = sliderHz();
-        if (value != savedRate) {
-            ClientConfig.save(ClientConfig.current().withRefresh(value));
-            savedRate = value;
-        }
-    }
-
-    @Override
-    public boolean mouseReleased(double x, double y, int button) {
-        boolean handled = super.mouseReleased(x, y, button);
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) saveRate();
-        return handled;
-    }
-
     @Override
     public boolean keyPressed(int key, int scan, int modifiers) {
         if (nameDialog != null && nameDialog.isOpen() && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER)) {
             submitName.run();
             return true;
         }
-        boolean handled = super.keyPressed(key, scan, modifiers);
-        if (key == GLFW.GLFW_KEY_LEFT || key == GLFW.GLFW_KEY_RIGHT) saveRate();
-        return handled;
-    }
-
-    @Override
-    public void removed() {
-        saveRate();
-        super.removed();
+        return super.keyPressed(key, scan, modifiers);
     }
 
     @Override public void onClose() { minecraft.setScreen(parent); }

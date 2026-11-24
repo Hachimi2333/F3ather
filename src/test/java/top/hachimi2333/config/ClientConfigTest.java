@@ -38,7 +38,7 @@ final class ClientConfigTest {
     }
 
     @Test
-    void addingTheAnimationOptionPreservesExistingSettings() {
+    void invalidRefreshRatesResetWithoutChangingOtherSettings() {
         var config = TomlFormat.newConfig();
         ClientConfig.SPEC.correct(config);
         config.remove("disableAnimations");
@@ -47,10 +47,24 @@ final class ClientConfigTest {
         ClientConfig.SPEC.correct(config);
 
         assertEquals(false, config.get("disableAnimations"));
-        assertEquals(30, config.<Integer>get("refreshHz"));
+        assertEquals(10, config.<Integer>get("refreshHz"));
         assertEquals(false, config.get("builtIn.world"));
-        assertTrue(OverlaySettings.DEFAULT.withDisableAnimations(true).withRefresh(30)
+        assertTrue(OverlaySettings.DEFAULT.withDisableAnimations(true).withRefresh(20)
                 .withBuiltIn(BuiltIn.WORLD, false).withCompatibility(true).disableAnimations());
+    }
+
+    @Test
+    void onlyTheFivePresetsAreAccepted() {
+        var config = TomlFormat.newConfig();
+        ClientConfig.SPEC.correct(config);
+        assertEquals(10, config.<Integer>get("refreshHz"));
+        assertEquals(List.of(1, 5, 10, 20, 0), OverlaySettings.REFRESH_PRESETS);
+        for (int preset : OverlaySettings.REFRESH_PRESETS) {
+            config.set("refreshHz", preset);
+            assertTrue(ClientConfig.SPEC.isCorrect(config));
+            assertEquals(preset, OverlaySettings.DEFAULT.withRefresh(preset).refreshHz());
+        }
+        assertEquals(10, OverlaySettings.DEFAULT.withRefresh(16).refreshHz());
     }
 
     @Test

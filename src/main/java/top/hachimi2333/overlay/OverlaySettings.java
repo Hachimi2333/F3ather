@@ -11,9 +11,13 @@ import java.util.UUID;
 
 public record OverlaySettings(int refreshHz, boolean compatibility, boolean disableAnimations,
                               Set<BuiltIn> enabled, List<Tab> customTabs) {
-    public static final OverlaySettings DEFAULT = new OverlaySettings(10, false, false, EnumSet.allOf(BuiltIn.class), List.of());
+    public static final List<Integer> REFRESH_PRESETS = List.of(1, 5, 10, 20, 0);
+    public static final int DEFAULT_REFRESH_HZ = 10;
+    public static final OverlaySettings DEFAULT = new OverlaySettings(DEFAULT_REFRESH_HZ, false, false,
+            EnumSet.allOf(BuiltIn.class), List.of());
 
     public OverlaySettings {
+        if (!REFRESH_PRESETS.contains(refreshHz)) refreshHz = DEFAULT_REFRESH_HZ;
         enabled = Set.copyOf(enabled);
         customTabs = List.copyOf(customTabs);
     }
