@@ -1,0 +1,8 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="f3ather_fixture_peer"
+version="1.0.0"
+displayName="F3ather Fixture Peer"

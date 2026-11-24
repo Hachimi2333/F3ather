@@ -2,30 +2,23 @@
 
 Minecraft 1.21.1 · NeoForge 21.1.172–21.1.x · Java 21
 
-F3ather 可以精简 F3 调试屏幕，减少文字采集频率和绘制行数。把 `f3ather-0.1.0.jar` 放进客户端的 `mods` 目录即可使用，服务器可以保持原有配置。
-
 ## 玩家指南
 
-从 **模组 → F3ather → 配置** 打开设置。
+将 `build/libs` 生成的 F3ather JAR 放进客户端的 `mods` 目录。JAR 已包含设置页框架和字体。
 
-| 预设 | 显示内容 |
-| --- | --- |
-| 轻量（默认） | 帧率、坐标、朝向和生物群系 |
-| 常用 | 加上方块坐标、区块、维度、光照和准星目标 |
-| 原版 | 完整的左右两列文本，包含其他模组追加的文字 |
-| 自定义 | 逐项控制显示，可从任一内置预设重置 |
-
-进入世界后打开一次 F3，配置页就会列出发现的附加条目。附加内容按左右列和稳定标签识别，标签之后的数值可以持续变化。同列同名标签共用开关，缺少稳定标签的文字归入该列的「其他附加内容」。自动适配覆盖 Minecraft F3 左右两列。完整替换 F3 界面或单独绘制 HUD 的模组需要专门适配。
-
-刷新方式独立于预设。默认的「限频」每 100 毫秒最多采集一次原版两列文字，第三方的 NeoForge DebugText 事件仍逐帧触发。「逐帧」让原版文字也逐帧更新。F3 图表继续通过 `F3+1`、`F3+2`、`F3+3` 控制。设置保存在 `config/f3ather-client.toml`。
+- `F3` 打开调试界面。F3ather 模式使用非像素字体和紧凑面板，默认显示帧率、坐标、区块内位置、朝向和群系。传统模式显示原版 F3。
+- `F3 + J` 或 **模组 → F3ather → 配置** 打开设置。左侧切换模式和改键，右侧开启、关闭和排列新版 HUD 的项目。设置保存在 `config/f3ather-client.toml`，旧版预设和开关会自动迁移。
+- `F3 + Page Up / Page Down` 翻阅新版 HUD，`F3 + 1/2/3` 仍控制原版图表。新版 HUD 和设置页随游戏切换简体中文和英文。
+- 在世界里打开一次 F3ather HUD，就能在设置中看到其他模组通过 NeoForge DebugText 添加的项目。项目显示可识别的模组名、文字样例和独立开关。第三方文本沿用提供方的语言。
 
 ## Player guide
 
-Install the JAR in the client’s `mods` folder and open **Mods → F3ather → Config**. Light is the default preset and shows FPS, coordinates, facing, and biome. Common adds block and chunk information, dimension, light, and targeted block, fluid, and entity data. Original shows the complete text columns. Select Custom to edit individual entries and optionally reset them from a built-in preset.
+Install the F3ather JAR from `build/libs` in the client's `mods` folder. It bundles its settings framework and font.
 
-Open F3 in a world to discover additional entries. Stable labels are grouped by column and label. Other text in each column shares an “Other additional text” switch. Automatic discovery covers additions to Minecraft’s two F3 columns. HUDs drawn independently and full F3 replacements need their own integrations.
-
-The default refresh mode samples Minecraft’s text at up to 10 Hz. Every Frame restores the normal sample rate. The NeoForge DebugText event still runs every frame. The stock F3 chart shortcuts remain available. Settings are saved to `config/f3ather-client.toml`.
+- Press `F3` to open the overlay. F3ather mode uses a compact layout and a custom font renderer. Its initial view shows frame rate, coordinates, position within a section, facing, and biome. Traditional mode uses Minecraft's F3 display.
+- Press `F3 + J` or open **Mods → F3ather → Config**. The left pane selects the mode and shortcut. The right pane toggles and reorders F3ather entries. Settings live in `config/f3ather-client.toml`. Existing presets and overrides migrate on first load.
+- Use `F3 + Page Up / Page Down` to browse the new HUD. `F3 + 1/2/3` retain the native charts. The HUD and settings follow the game's English or Simplified Chinese language selection.
+- Open the F3ather HUD in a world to discover text supplied by other mods through NeoForge DebugText. Each discovered entry shows a sample and a mod name when it can be identified. The original mod supplies the language of its text.
 
 ## 构建 / Build
 
@@ -37,26 +30,25 @@ The default refresh mode samples Minecraft’s text at up to 10 Hz. Every Frame 
 .\gradlew.bat "-PneoVersion=21.1.172" runClient
 ```
 
-在 macOS/Linux 上，将 `.\gradlew.bat` 换成 `./gradlew`。The JAR is generated in `build/libs`.
+On macOS or Linux, use `./gradlew`. The JAR in `build/libs` embeds OpenUI MC 0.0.16. The build verifies the release artifact's SHA-256. The bundled F3ather Sans face is a regular-weight instance of Noto Sans SC from the Sans2.004 release. Both upstream licenses are in the JAR under `META-INF`.
 
-构建默认使用华为云 Gradle 镜像和阿里云 Gradle Plugin、Maven Central 镜像。使用 `-PuseChinaMirrors=false` 可切回官方 Maven 和插件仓库。若需要切换 Gradle 分发地址，修改 `gradle-wrapper.properties` 中的 `distributionUrl` 为 `https://services.gradle.org/distributions/gradle-9.2.1-bin.zip`，继续使用相同的官方 SHA-256。NeoForge 专用构件使用官方 Maven。
-
-Minecraft 资源对象可通过 BMCLAPI 下载。运行前在 PowerShell 中设置以下环境变量，恢复官方资源地址时可移除该变量。Use the same variable with `export` in a POSIX shell.
-
-```powershell
-$env:NFRT_ASSET_REPOSITORY = 'https://bmclapi2.bangbang93.com/assets/'
-.\gradlew.bat downloadAssets
-```
+构建默认使用 Gradle 和 Maven 镜像。NeoForge 构件来自官方仓库。使用 `-PuseChinaMirrors=false` 可切换 Gradle 插件和 Maven Central 来源。Minecraft 资源对象也可通过环境变量 `NFRT_ASSET_REPOSITORY` 指定镜像，例如 `https://bmclapi2.bangbang93.com/assets/`。
 
 ## 兼容与性能测试 / Compatibility and performance
 
-`gradlew test` 验证采集间隔、模式切换、缓存失效、原版分组和第三方发现逻辑。独立测试模组使用真实的 NeoForge 事件，在两列加入 97 行附加文本，并改写、删除和重排文本。测试模组仅由 `runFixtureClient` 加载。
+`gradlew test` 验证逐帧可编辑列表、附加项来源区分、排序、精简调试范围和条目数量上限。测试客户端用成品 JAR 启动，并加载两个独立测试模组。它们每帧合计添加 99 行第三方文本，其中两行完全相同，同时也会改写和移动已有内容。
 
 ```powershell
-.\gradlew.bat runFixtureClient
-.\gradlew.bat runFixtureClient -PfixtureBaseline
-.\gradlew.bat runFixtureClient "-PfixtureWorld=f3ather-test" -PfixtureAuto
-.\gradlew.bat runFixtureClient "-PfixtureServer=127.0.0.1:25565" -PfixtureAuto
+.\gradlew.bat runFixtureClient -PfixtureAuto
+.\gradlew.bat runFixtureClient -PfixtureAuto -PfixtureVisual
+.\gradlew.bat runFixtureClient -PfixtureBaseline -PfixtureAuto
 ```
 
-在测试客户端创建文件夹名为 `f3ather-test` 的测试世界，或用 `fixtureServer` 连接测试服务器。打开 F3 后，测试模组预热三秒，再测量八秒，并在 `runs/fixture/logs/latest.log` 输出 `F3ATHER_MEASUREMENT`。其中包含每列每秒采集次数、每帧绘制行数和帧间隔。带 `fixtureAuto` 的运行会自动开启 F3 并在采样结束后退出。对比时使用同一世界、视角和视频设置，分别记录只有测试模组、原版预设和轻量预设的数据。
+自动模式使用隔离的测试世界，先测 F3ather，再测传统模式。日志在 `build/fixture/logs/latest.log`，`F3ATHER_MEASUREMENT` 记录两列原版采集频率、HUD CPU 耗时和帧间隔。可加 `-PfixtureVisual` 验证设置入口、精简规则和关闭 HUD 时停止采集，并保存中英文界面截图。
+
+要验证多人环境，先运行下面的第一条命令，等本机回环服务器报告就绪，再在第二个终端运行第二条命令。测试客户端使用独立目录 `build/fixture-network`，并验证远程服务器统计、未加载区块、维度切换和服务器强制精简调试。
+
+```powershell
+.\gradlew.bat runFixtureClient -PfixtureAuto '-PfixtureHost=25578'
+.\gradlew.bat runFixtureClient '-PfixtureServer=127.0.0.1:25578'
+```

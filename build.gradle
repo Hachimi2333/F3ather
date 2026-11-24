@@ -46,11 +46,15 @@ repositories {
 
 sourceSets {
     fixture
+    fixturePeer
 }
+
+sourceSets.fixture.compileClasspath += sourceSets.main.output
 
 dependencies {
     def openUi = 'com.nstut:openui-mc-neoforge-1.21.1:0.0.16'
     compileOnly(openUi)
+    fixtureCompileOnly(openUi)
     jarJar(openUi) {
         version { strictly '[0.0.16]' }
     }
@@ -81,14 +85,16 @@ tasks.named('test', Test) {
 }
 
 def fixtureDirectory = providers.gradleProperty('fixtureBaseline').isPresent() ? 'fixture-baseline'
-        : 'fixture'
+        : providers.gradleProperty('fixtureServer').isPresent() ? 'fixture-network' : 'fixture'
 
 neoForge {
     version = neoVersion
     addModdingDependenciesTo sourceSets.fixture
+    addModdingDependenciesTo sourceSets.fixturePeer
     mods {
         f3ather { sourceSet sourceSets.main }
         f3ather_fixture { sourceSet sourceSets.fixture }
+        f3ather_fixture_peer { sourceSet sourceSets.fixturePeer }
     }
     runs {
         client {
@@ -99,9 +105,16 @@ neoForge {
         fixtureClient {
             client()
             gameDirectory = layout.buildDirectory.dir(fixtureDirectory).get().asFile
-            loadedMods = [mods.f3ather_fixture]
+            loadedMods = [mods.f3ather_fixture, mods.f3ather_fixture_peer]
             if (providers.gradleProperty('fixtureAuto').isPresent()) {
                 systemProperty 'f3ather.fixture.auto', 'true'
+            }
+            if (providers.gradleProperty('fixtureVisual').isPresent()) {
+                systemProperty 'f3ather.fixture.visual', 'true'
+            }
+            def hostPort = providers.gradleProperty('fixtureHost').orNull
+            if (hostPort != null) {
+                systemProperty 'f3ather.fixture.host', hostPort
             }
             def world = providers.gradleProperty('fixtureWorld').orNull
             if (world != null) {
@@ -109,7 +122,8 @@ neoForge {
             }
             def serverAddress = providers.gradleProperty('fixtureServer').orNull
             if (serverAddress != null) {
-                programArguments.addAll '--quickPlayMultiplayer', serverAddress
+                systemProperty 'f3ather.fixture.network', 'true'
+                programArguments.addAll '--username', 'FixtureGuest', '--quickPlayMultiplayer', serverAddress
             }
         }
         server {
