@@ -153,7 +153,7 @@ public final class OverlayHud {
     }
 
     public HudLayout.Position position(OverlaySettings settings, int width) {
-        return motion.position(System.nanoTime(), settings.disableAnimations(), width);
+        return motion.position(System.nanoTime(), settings.disableAnimations(), width).withHiddenTabBar(settings.hideTabBar());
     }
 
     private void select(String id) {
@@ -257,6 +257,7 @@ public final class OverlayHud {
             presented = null;
             return;
         }
+        position = position.withHiddenTabBar(settings.hideTabBar());
         drawPresentedHeader(graphics, presented, position);
         var rows = presented.rows();
         if (BuiltIn.VANILLA.id().equals(presented.tab())) {
@@ -330,10 +331,12 @@ public final class OverlayHud {
     public record Bottoms(int left, int right) {}
 
     public void drawPreview(GuiGraphics graphics, OverlaySettings settings, Tab tab,
-                            Bottoms bottom, Map<Region, List<String>> rows, int page, int pages) {
-        drawHeader(graphics, settings, tab.id(), 0, pages == 1 ? null
-                : Component.translatable("f3ather.hud.page", page + 1, pages).getString());
-        drawRows(graphics, rows, HudLayout.Position.EXPANDED, bottom, page, true);
+                            HudLayout.Position position, Bottoms bottom, Map<Region, List<String>> rows, int page, int pages) {
+        if (position.headerHeight() != 0) {
+            drawHeader(graphics, settings, tab.id(), 0, pages == 1 ? null
+                    : Component.translatable("f3ather.hud.page", page + 1, pages).getString());
+        }
+        drawRows(graphics, rows, position, bottom, page, true);
     }
 
     private void drawRows(GuiGraphics graphics, Map<Region, List<String>> rows, HudLayout.Position position,

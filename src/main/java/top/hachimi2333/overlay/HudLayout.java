@@ -47,6 +47,13 @@ public final class HudLayout {
 
     public record Position(int columnDistance, int headerHeight, int layoutHeader) {
         static final Position EXPANDED = new Position(0, HEADER, HEADER);
+        private static final Position HEADERLESS = new Position(0, 0, 0);
+
+        public static Position preview(boolean hideTabBar) { return hideTabBar ? HEADERLESS : EXPANDED; }
+
+        Position withHiddenTabBar(boolean hidden) {
+            return hidden ? new Position(columnDistance, 0, 0) : this;
+        }
 
         public int columnX(boolean left) { return left ? -columnDistance : columnDistance; }
         public int headerY() { return headerHeight - HEADER; }

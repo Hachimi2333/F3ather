@@ -116,4 +116,21 @@ final class OverlayMotionTest {
         motion.open(5400 * MS, false);
         assertEquals(WIDTH, motion.position(5400 * MS, false, WIDTH).columnDistance());
     }
+
+    @Test
+    void hiddenTabBarReclaimsSpaceWithoutChangingColumnMotionOrTabSelection() {
+        var entering = new OverlayMotion().position(0, false, WIDTH);
+        var hidden = entering.withHiddenTabBar(true);
+        assertEquals(WIDTH, hidden.columnDistance());
+        assertEquals(0, hidden.headerHeight());
+        assertEquals(0, hidden.layoutHeader());
+
+        var settings = OverlaySettings.DEFAULT.withHideTabBar(true).withDisableAnimations(true);
+        var hud = new OverlayHud(new AddonEntries());
+        hud.cycle(settings);
+        hud.cycle(settings);
+        assertEquals("performance", hud.activeTab());
+        assertEquals(HudLayout.Position.preview(true), hud.position(settings, WIDTH));
+        assertEquals(HudLayout.Position.EXPANDED, hud.position(settings.withHideTabBar(false), WIDTH));
+    }
 }

@@ -9,6 +9,7 @@ Minecraft 1.21.1 · NeoForge 21.1.172–21.1.x · Java 21
 - `F3` 打开调试 HUD，文字从两侧滑入，标签栏从上方滑入，再按一次原路退场。标签栏闲置 4 秒后收起，顶部文字随之上移。按 `Tab` 唤回标签栏并切到下一页。模组页在当前世界检测到第三方通过文字采集或 NeoForge DebugText 新增的行后出现。
 - 模组页和自定义页有多页时，按 `F3 + Page Up / Page Down` 翻页。`F3 + 1/2/3` 仍控制原版图表。
 - 按 `F3 + 0` 或从 **模组 → F3ather → 配置** 打开设置。左栏提供 1 Hz、5 Hz、10 Hz、20 Hz 和无限制刷新率，也可切换兼容模式和禁用动画。右栏管理标签页。禁用动画后，标签栏仍按时收起。兼容模式恢复原版 F3，`F3 + 0` 仍可访问设置。
+- 开启「隐藏标签栏」可腾出 F3 顶部空间，仍可用 `Tab` 切换标签页。编辑器预览同步使用这个设置。
 - 新建自定义页后，按 `/` 或点击「添加」搜索条目。拖动条目可跨四角区域移动或排序。改动自动保存到 `config/f3ather-tabs.toml`。在标题画面打开编辑器时使用格式与原版一致的示例数据。
 
 ## Player guide
@@ -18,6 +19,7 @@ Install the F3ather JAR from `build/libs` in your client's `mods` directory.
 - Press `F3` to slide in the debug overlay and press it again to slide it out. After four seconds of inactivity, the header slides away and the top rows move up. Press `Tab` to bring back the header and switch to the next tab. The Mods tab appears when another mod adds a row during text collection or the NeoForge DebugText event.
 - Use `F3 + Page Up / Page Down` for long Mods or custom tabs. The native debug charts still use `F3 + 1/2/3`.
 - Use `F3 + 0` or **Mods → F3ather → Config** to manage tabs, choose 1 Hz, 5 Hz, 10 Hz, 20 Hz, or Unlimited, disable animations, or restore the native F3 through Compatibility Mode. The header still auto-hides with animations disabled.
+- Enable **Hide Tab Bar** to reclaim the space at the top of F3. Press `Tab` to switch tabs as usual. The editor preview follows this setting.
 - In a custom tab, press `/` or select **Add** to search. Drag entries between corners or reorder them within a corner. Changes save to `config/f3ather-tabs.toml`. The editor uses sample values on the title screen.
 
 ## 构建与实机验收 / Build and in-game checks

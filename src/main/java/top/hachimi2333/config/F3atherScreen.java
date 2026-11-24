@@ -75,6 +75,8 @@ public final class F3atherScreen extends UiScreen {
                 Ui.text(label("general")).style(TextStyle.HEADING.withColor(TEXT)).height(23),
                 Ui.text(label("refresh")).color(TEXT).ellipsis().height(17),
                 refreshRate(settings.refreshHz()),
+                preference("hide_tab_bar", settings.hideTabBar(),
+                        value -> ClientConfig.save(ClientConfig.current().withHideTabBar(value))),
                 preference("compatibility", settings.compatibility(),
                         value -> ClientConfig.save(ClientConfig.current().withCompatibility(value))),
                 preference("disable_animations", settings.disableAnimations(),

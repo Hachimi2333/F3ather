@@ -182,7 +182,9 @@ public final class TabEditorScreen extends UiScreen {
                 rows.put(region, lines);
                 groups.put(region, entries);
             }
-            int top = y + HudLayout.HEADER;
+            var settings = ClientConfig.current();
+            var position = HudLayout.Position.preview(settings.hideTabBar());
+            int top = y + position.layoutHeader();
             var bottom = F3ather.HUD.bottoms(y + height, top);
             pages = HudLayout.pageCount(width, top, bottom.left(), bottom.right(), rows, true);
             page = Math.clamp(page, 0, pages - 1);
@@ -213,7 +215,7 @@ public final class TabEditorScreen extends UiScreen {
             }
             placements = visible;
             graphics.drawManaged(() -> {
-                F3ather.HUD.drawPreview(graphics, ClientConfig.current(), tab, bottom, rows, page, pages);
+                F3ather.HUD.drawPreview(graphics, settings, tab, position, bottom, rows, page, pages);
                 if (!uiRuntime().overlays().hasBlockingOverlay()) drawControls(graphics, mouseX, mouseY, tab);
             });
         }

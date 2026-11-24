@@ -9,11 +9,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-public record OverlaySettings(int refreshHz, boolean compatibility, boolean disableAnimations,
+public record OverlaySettings(int refreshHz, boolean compatibility, boolean disableAnimations, boolean hideTabBar,
                               Set<BuiltIn> enabled, List<Tab> customTabs) {
     public static final List<Integer> REFRESH_PRESETS = List.of(1, 5, 10, 20, 0);
     public static final int DEFAULT_REFRESH_HZ = 10;
-    public static final OverlaySettings DEFAULT = new OverlaySettings(DEFAULT_REFRESH_HZ, false, false,
+    public static final OverlaySettings DEFAULT = new OverlaySettings(DEFAULT_REFRESH_HZ, false, false, false,
             EnumSet.allOf(BuiltIn.class), List.of());
 
     public OverlaySettings {
@@ -38,15 +38,19 @@ public record OverlaySettings(int refreshHz, boolean compatibility, boolean disa
     }
 
     public OverlaySettings withRefresh(int hz) {
-        return new OverlaySettings(hz, compatibility, disableAnimations, enabled, customTabs);
+        return new OverlaySettings(hz, compatibility, disableAnimations, hideTabBar, enabled, customTabs);
     }
 
     public OverlaySettings withCompatibility(boolean value) {
-        return new OverlaySettings(refreshHz, value, disableAnimations, enabled, customTabs);
+        return new OverlaySettings(refreshHz, value, disableAnimations, hideTabBar, enabled, customTabs);
     }
 
     public OverlaySettings withDisableAnimations(boolean value) {
-        return new OverlaySettings(refreshHz, compatibility, value, enabled, customTabs);
+        return new OverlaySettings(refreshHz, compatibility, value, hideTabBar, enabled, customTabs);
+    }
+
+    public OverlaySettings withHideTabBar(boolean value) {
+        return new OverlaySettings(refreshHz, compatibility, disableAnimations, value, enabled, customTabs);
     }
 
     public OverlaySettings withBuiltIn(BuiltIn tab, boolean value) {
@@ -54,7 +58,7 @@ public record OverlaySettings(int refreshHz, boolean compatibility, boolean disa
         updated.addAll(enabled);
         if (value) updated.add(tab);
         else updated.remove(tab);
-        return new OverlaySettings(refreshHz, compatibility, disableAnimations, updated, customTabs);
+        return new OverlaySettings(refreshHz, compatibility, disableAnimations, hideTabBar, updated, customTabs);
     }
 
     public OverlaySettings withTab(Tab tab) {
@@ -62,15 +66,15 @@ public record OverlaySettings(int refreshHz, boolean compatibility, boolean disa
         for (int i = 0; i < updated.size(); i++) {
             if (updated.get(i).id().equals(tab.id())) {
                 updated.set(i, tab);
-                return new OverlaySettings(refreshHz, compatibility, disableAnimations, enabled, updated);
+                return new OverlaySettings(refreshHz, compatibility, disableAnimations, hideTabBar, enabled, updated);
             }
         }
         updated.add(tab);
-        return new OverlaySettings(refreshHz, compatibility, disableAnimations, enabled, updated);
+        return new OverlaySettings(refreshHz, compatibility, disableAnimations, hideTabBar, enabled, updated);
     }
 
     public OverlaySettings withoutTab(String id) {
-        return new OverlaySettings(refreshHz, compatibility, disableAnimations, enabled,
+        return new OverlaySettings(refreshHz, compatibility, disableAnimations, hideTabBar, enabled,
                 customTabs.stream().filter(tab -> !tab.id().equals(id)).toList());
     }
 
