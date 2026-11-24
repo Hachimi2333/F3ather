@@ -4,39 +4,40 @@ Minecraft 1.21.1 · NeoForge 21.1.172–21.1.x · Java 21
 
 ## 玩家指南
 
-将 `build/libs` 生成的 F3ather JAR 放进客户端的 `mods` 目录。JAR 已包含设置页框架和字体。
+从 `build/libs` 取出 F3ather JAR，放入客户端的 `mods` 目录。
 
-- `F3` 打开调试界面。F3ather 模式使用非像素字体和紧凑面板，默认显示帧率、坐标、区块内位置、朝向和群系。传统模式显示原版 F3。
-- `F3 + J` 或 **模组 → F3ather → 配置** 打开设置。左侧切换模式和改键，右侧开启、关闭和排列新版 HUD 的项目。设置保存在 `config/f3ather-client.toml`，旧版预设和开关会自动迁移。
-- `F3 + Page Up / Page Down` 翻阅新版 HUD，`F3 + 1/2/3` 仍控制原版图表。新版 HUD 和设置页随游戏切换简体中文和英文。
-- 在世界里打开一次 F3ather HUD，就能在设置中看到其他模组通过 NeoForge DebugText 添加的项目。项目显示可识别的模组名、文字样例和独立开关。第三方文本沿用提供方的语言。
+- `F3` 打开调试 HUD。按 `Tab` 依次切换精简、性能、世界、模组、原版和已启用的自定义页。模组页在当前世界检测到其他模组通过 NeoForge DebugText 追加文字后出现。
+- 模组页和自定义页有多页时，按 `F3 + Page Up / Page Down` 翻页。`F3 + 1/2/3` 仍控制原版图表。
+- 按 `F3 + 0` 或从 **模组 → F3ather → 配置** 打开设置。可开关标签页、调整文本刷新率或开启兼容模式。兼容模式恢复原版 F3，`F3 + 0` 仍可访问设置。
+- 新建自定义页后，按 `/` 或点击「添加」搜索条目。拖动条目可跨四角区域移动或排序。改动自动保存到 `config/f3ather-tabs.toml`。在标题画面打开编辑器时使用格式与原版一致的示例数据。
 
 ## Player guide
 
-Install the F3ather JAR from `build/libs` in the client's `mods` folder. It bundles its settings framework and font.
+Install the F3ather JAR from `build/libs` in your client's `mods` directory.
 
-- Press `F3` to open the overlay. F3ather mode uses a compact layout and a custom font renderer. Its initial view shows frame rate, coordinates, position within a section, facing, and biome. Traditional mode uses Minecraft's F3 display.
-- Press `F3 + J` or open **Mods → F3ather → Config**. The left pane selects the mode and shortcut. The right pane toggles and reorders F3ather entries. Settings live in `config/f3ather-client.toml`. Existing presets and overrides migrate on first load.
-- Use `F3 + Page Up / Page Down` to browse the new HUD. `F3 + 1/2/3` retain the native charts. The HUD and settings follow the game's English or Simplified Chinese language selection.
-- Open the F3ather HUD in a world to discover text supplied by other mods through NeoForge DebugText. Each discovered entry shows a sample and a mod name when it can be identified. The original mod supplies the language of its text.
+- Open the overlay with `F3` and cycle through enabled tabs with `Tab`. The Mods tab appears after another mod adds a NeoForge DebugText line in the current world.
+- Use `F3 + Page Up / Page Down` for long Mods or custom tabs. The native debug charts still use `F3 + 1/2/3`.
+- Use `F3 + 0` or **Mods → F3ather → Config** to manage tabs, change the text refresh rate, or restore the native F3 through Compatibility Mode.
+- In a custom tab, press `/` or select **Add** to search. Drag entries between corners or reorder them within a corner. Changes save to `config/f3ather-tabs.toml`. The editor uses sample values on the title screen.
 
-## 构建 / Build
+## 构建与实机验收 / Build and in-game checks
 
-将 `JAVA_HOME` 指向 JDK 21。Set `JAVA_HOME` to a JDK 21 installation.
+将 `JAVA_HOME` 指向本机的 JDK 21。在 macOS 和 Linux 上使用 `./gradlew`。
 
 ```powershell
-.\gradlew.bat build
-.\gradlew.bat runClient
+.\gradlew.bat "-PneoVersion=21.1.172" build fixtureClasses fixturePeerClasses
+.\gradlew.bat build fixtureClasses fixturePeerClasses
 .\gradlew.bat "-PneoVersion=21.1.172" runClient
+.\gradlew.bat runClient
 ```
 
-On macOS or Linux, use `./gradlew`. The JAR in `build/libs` embeds OpenUI MC 0.0.16. The build verifies the release artifact's SHA-256. The bundled F3ather Sans face is a regular-weight instance of Noto Sans SC from the Sans2.004 release. Both upstream licenses are in the JAR under `META-INF`.
+两个版本分别确认原版数据行和图表、`Tab` 切换和多页翻页、兼容模式下的多人玩家列表、F3ather 图标，以及自定义页的搜索、跨区拖放和重启后的保存结果。主设置和编辑器在游戏语言为英语和简体中文时各检查一次。
 
-构建默认使用 Gradle 和 Maven 镜像。NeoForge 构件来自官方仓库。使用 `-PuseChinaMirrors=false` 可切换 Gradle 插件和 Maven Central 来源。Minecraft 资源对象也可通过环境变量 `NFRT_ASSET_REPOSITORY` 指定镜像，例如 `https://bmclapi2.bangbang93.com/assets/`。
+The JAR embeds OpenUI MC 0.0.16. The build verifies its SHA-256. Gradle and Maven mirrors are used by default, while NeoForge artifacts come from the official repository. Use `-PuseChinaMirrors=false` to disable the Gradle and Maven Central mirrors. Minecraft assets can use an `NFRT_ASSET_REPOSITORY` mirror such as `https://bmclapi2.bangbang93.com/assets/`.
 
-## 兼容与性能测试 / Compatibility and performance
+## 兼容性与性能夹具 / Compatibility and performance fixtures
 
-`gradlew test` 验证逐帧可编辑列表、附加项来源区分、排序、精简调试范围和条目数量上限。测试客户端用成品 JAR 启动，并加载两个独立测试模组。它们每帧合计添加 99 行第三方文本，其中两行完全相同，同时也会改写和移动已有内容。
+测试客户端加载两个独立模组，每帧追加 99 行调试文字，包括两行相同文字，还会改写、移动和删除原版行。自动模式测量原版 Tab 的 10 Hz 和每帧档，以及兼容模式。日志 `build/fixture/logs/latest.log` 中的 `F3ATHER_MEASUREMENT` 记录采样频率、每列文字绘制和整个 HUD 的 CPU 耗时，以及帧间隔。可选视觉检查保存设置、编辑器和模组页的截图。
 
 ```powershell
 .\gradlew.bat runFixtureClient -PfixtureAuto
@@ -44,11 +45,9 @@ On macOS or Linux, use `./gradlew`. The JAR in `build/libs` embeds OpenUI MC 0.0
 .\gradlew.bat runFixtureClient -PfixtureBaseline -PfixtureAuto
 ```
 
-自动模式使用隔离的测试世界，先测 F3ather，再测传统模式。日志在 `build/fixture/logs/latest.log`，`F3ATHER_MEASUREMENT` 记录两列原版采集频率、HUD CPU 耗时和帧间隔。可加 `-PfixtureVisual` 验证设置入口、精简规则和关闭 HUD 时停止采集，并保存中英文界面截图。
-
-要验证多人环境，先运行下面的第一条命令，等本机回环服务器报告就绪，再在第二个终端运行第二条命令。测试客户端使用独立目录 `build/fixture-network`，并验证远程服务器统计、未加载区块、维度切换和服务器强制精简调试。
+多人夹具验证远程服务器统计、未加载区块、维度切换和服务器强制精简调试。先启动本机回环服务器，等日志显示就绪后再启动访客端。
 
 ```powershell
-.\gradlew.bat runFixtureClient -PfixtureAuto '-PfixtureHost=25578'
-.\gradlew.bat runFixtureClient '-PfixtureServer=127.0.0.1:25578'
+.\gradlew.bat runFixtureClient -PfixtureAuto "-PfixtureHost=25578"
+.\gradlew.bat runFixtureClient "-PfixtureServer=127.0.0.1:25578"
 ```
