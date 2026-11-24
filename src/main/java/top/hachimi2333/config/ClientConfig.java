@@ -25,6 +25,7 @@ public final class ClientConfig {
     private static final Gson JSON = new Gson();
     private static final ModConfigSpec.IntValue REFRESH;
     private static final ModConfigSpec.BooleanValue COMPATIBILITY;
+    private static final ModConfigSpec.BooleanValue DISABLE_ANIMATIONS;
     private static final EnumMap<BuiltIn, ModConfigSpec.BooleanValue> BUILT_INS = new EnumMap<>(BuiltIn.class);
     private static final ModConfigSpec.ConfigValue<List<? extends String>> CUSTOM;
     private static volatile OverlaySettings current = OverlaySettings.DEFAULT;
@@ -34,6 +35,7 @@ public final class ClientConfig {
         REFRESH = builder.comment("Text samples per second. Zero samples every frame.")
                 .defineInRange("refreshHz", 10, 0, 60);
         COMPATIBILITY = builder.define("compatibility", false);
+        DISABLE_ANIMATIONS = builder.define("disableAnimations", OverlaySettings.DEFAULT.disableAnimations());
         builder.push("builtIn");
         for (BuiltIn tab : BuiltIn.values()) BUILT_INS.put(tab, builder.define(tab.id(), true));
         builder.pop();
@@ -56,13 +58,14 @@ public final class ClientConfig {
             Tab tab = decodeTab(encoded);
             if (tab != null && ids.add(tab.id())) tabs.add(tab);
         }
-        current = new OverlaySettings(REFRESH.get(), COMPATIBILITY.get(), enabled, tabs);
+        current = new OverlaySettings(REFRESH.get(), COMPATIBILITY.get(), DISABLE_ANIMATIONS.get(), enabled, tabs);
     }
 
     public static synchronized void save(OverlaySettings settings) {
         if (settings.equals(current)) return;
         REFRESH.set(settings.refreshHz());
         COMPATIBILITY.set(settings.compatibility());
+        DISABLE_ANIMATIONS.set(settings.disableAnimations());
         BUILT_INS.forEach((tab, value) -> value.set(settings.enabled().contains(tab)));
         CUSTOM.set(settings.customTabs().stream().map(ClientConfig::encodeTab).toList());
         SPEC.save();

@@ -32,7 +32,7 @@ final class FixtureChecks {
     }
 
     static void measure(boolean compatibility, int rate) {
-        ClientConfig.save(new OverlaySettings(rate, compatibility, Set.of(BuiltIn.VANILLA), java.util.List.of()));
+        ClientConfig.save(new OverlaySettings(rate, compatibility, true, Set.of(BuiltIn.VANILLA), java.util.List.of()));
     }
 
     static void restore() {

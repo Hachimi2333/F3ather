@@ -18,6 +18,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static top.hachimi2333.overlay.VanillaEntry.*;
 
@@ -32,6 +33,7 @@ public final class OverlayHud {
     private final AddonEntries addons;
     private final FastDebugText text = new FastDebugText();
     private final SampleClock clock = new SampleClock();
+    private final OverlayMotion motion = new OverlayMotion();
     private List<AddonEntries.Row> left = List.of();
     private List<AddonEntries.Row> right = List.of();
     private ClientPacketListener connection;
@@ -60,6 +62,7 @@ public final class OverlayHud {
 
     public void resetWorld() {
         invalidate();
+        resetMotion();
         connection = null;
         level = null;
         camera = null;
@@ -114,14 +117,28 @@ public final class OverlayHud {
     }
 
     public void cycle(OverlaySettings settings) {
-        select(OverlaySettings.cycle(settings.visibleTabs(modsDetected), active));
+        String next = OverlaySettings.cycle(settings.visibleTabs(modsDetected), active);
+        if (!Objects.equals(active, next)) select(next);
+        motion.reveal(System.nanoTime(), settings.disableAnimations());
     }
 
     public boolean supportsPages() {
         return active != null && (active.equals(BuiltIn.MODS.id()) || !isBuiltIn(active));
     }
 
-    public void advancePage(int direction) { page = Math.clamp(page + direction, 0, pageCount - 1); }
+    public void advancePage(int direction, OverlaySettings settings) {
+        int next = Math.clamp(page + direction, 0, pageCount - 1);
+        if (page != next) {
+            page = next;
+            motion.reveal(System.nanoTime(), settings.disableAnimations());
+        }
+    }
+
+    public void resetMotion() { motion.reset(); }
+
+    public HudLayout.Position position(OverlaySettings settings, int width) {
+        return motion.position(System.nanoTime(), settings.disableAnimations(), width);
+    }
 
     private void select(String id) {
         active = id;
@@ -174,7 +191,7 @@ public final class OverlayHud {
         int available = limit - BAR_START;
         int overflow = Math.max(0, total - available);
         int offset = Math.clamp(Math.min(activeStart, activeEnd - available), 0, overflow);
-        graphics.enableScissor(BAR_START, top, limit, top + HudLayout.HEADER);
+        graphics.enableScissor(BAR_START, Math.max(0, top), limit, top + HudLayout.HEADER);
         int x = BAR_START - offset;
         for (int i = 0; i < labels.size() && x < limit; i++) {
             int width = widths.get(i);
@@ -189,17 +206,19 @@ public final class OverlayHud {
         graphics.disableScissor();
     }
 
-    public void drawSelected(GuiGraphics graphics, OverlaySettings settings) {
+    public void drawSelected(GuiGraphics graphics, OverlaySettings settings, HudLayout.Position position) {
         var rows = selectedRows(settings);
-        int top = HudLayout.HEADER;
+        int top = position.layoutHeader();
         var bottoms = bottoms(graphics.guiHeight(), top);
         boolean custom = active != null && !isBuiltIn(active);
         pageCount = supportsPages()
                 ? HudLayout.pageCount(graphics.guiWidth(), top, bottoms.left(), bottoms.right(), rows, custom) : 1;
         page = Math.min(page, pageCount - 1);
-        drawHeader(graphics, settings, active, 0, pageCount == 1 ? null
-                : Component.translatable("f3ather.hud.page", page + 1, pageCount).getString());
-        drawRows(graphics, rows, top, bottoms.left(), bottoms.right(), page, custom);
+        if (position.headerHeight() != 0) {
+            drawHeader(graphics, settings, active, position.headerY(), pageCount == 1 ? null
+                    : Component.translatable("f3ather.hud.page", page + 1, pageCount).getString());
+        }
+        drawRows(graphics, rows, position, bottoms, page, custom);
     }
 
     private Map<Region, List<String>> selectedRows(OverlaySettings settings) {
@@ -250,36 +269,47 @@ public final class OverlayHud {
 
     public record Bottoms(int left, int right) {}
 
-    public void drawPreview(GuiGraphics graphics, OverlaySettings settings, Tab tab, int headerTop,
+    public void drawPreview(GuiGraphics graphics, OverlaySettings settings, Tab tab,
                             Bottoms bottom, Map<Region, List<String>> rows, int page, int pages) {
-        drawHeader(graphics, settings, tab.id(), headerTop, pages == 1 ? null
+        drawHeader(graphics, settings, tab.id(), 0, pages == 1 ? null
                 : Component.translatable("f3ather.hud.page", page + 1, pages).getString());
-        drawRows(graphics, rows, headerTop + HudLayout.HEADER, bottom.left(), bottom.right(), page, true);
+        drawRows(graphics, rows, HudLayout.Position.EXPANDED, bottom, page, true);
     }
 
-    private void drawRows(GuiGraphics graphics, Map<Region, List<String>> rows, int top, int leftBottom,
-                          int rightBottom, int page, boolean fourCorners) {
+    private void drawRows(GuiGraphics graphics, Map<Region, List<String>> rows, HudLayout.Position position,
+                          Bottoms layoutBottoms, int page, boolean fourCorners) {
         Font font = Minecraft.getInstance().font;
+        int width = graphics.guiWidth();
+        int visibleHeader = position.headerHeight();
+        int layoutHeader = position.layoutHeader();
+        var visibleBottoms = visibleHeader == layoutHeader ? layoutBottoms : bottoms(graphics.guiHeight(), visibleHeader);
         for (Region region : Region.values()) {
-            var bounds = HudLayout.bounds(graphics.guiWidth(), top, region.left() ? leftBottom : rightBottom, region, rows, fourCorners);
+            boolean left = region.left();
+            int layoutBottom = left ? layoutBottoms.left() : layoutBottoms.right();
+            var bounds = HudLayout.bounds(width, layoutHeader, layoutBottom, region, rows, fourCorners);
             var lines = HudLayout.page(rows.getOrDefault(region, List.of()), bounds, page);
             if (lines.isEmpty()) continue;
-            int start = bounds.firstY(region.top(), lines.size());
-            graphics.enableScissor(fourCorners ? bounds.left() : 0, bounds.top(),
-                    fourCorners ? bounds.right() : graphics.guiWidth(), bounds.bottom());
+            int offsetX = position.columnX(left);
+            int offsetY = region.top() ? visibleHeader - layoutHeader : 0;
+            int clipLeft = Math.max(0, (fourCorners ? bounds.left() : 0) + offsetX);
+            int clipRight = Math.min(width, (fourCorners ? bounds.right() : width) + offsetX);
+            var visible = visibleHeader == layoutHeader ? bounds : HudLayout.bounds(width, visibleHeader,
+                    left ? visibleBottoms.left() : visibleBottoms.right(), region, rows, fourCorners);
+            if (clipRight <= clipLeft || visible.bottom() <= visible.top()) continue;
+            int start = bounds.firstY(region.top(), lines.size()) + offsetY;
+            graphics.enableScissor(clipLeft, visible.top(), clipRight, visible.bottom());
             for (int index = 0; index < lines.size(); index++) {
                 String line = lines.get(index);
                 if (line.isEmpty()) continue;
-                int width = text.width(font, line, TEXT);
-                int x = region.left() ? bounds.left() + 2 : bounds.right() - 2 - width;
+                int lineWidth = text.width(font, line, TEXT);
+                int x = offsetX + (left ? bounds.left() + 2 : bounds.right() - 2 - lineWidth);
                 int y = start + index * HudLayout.ROW_HEIGHT;
-                graphics.fill(x - 1, y - 1, x + width + 1, y + HudLayout.ROW_HEIGHT - 1, BACKGROUND);
+                graphics.fill(x - 1, y - 1, x + lineWidth + 1, y + HudLayout.ROW_HEIGHT - 1, BACKGROUND);
             }
             for (int index = 0; index < lines.size(); index++) {
                 String line = lines.get(index);
                 if (line.isEmpty()) continue;
-                int width = text.width(font, line, TEXT);
-                int x = region.left() ? bounds.left() + 2 : bounds.right() - 2 - width;
+                int x = offsetX + (left ? bounds.left() + 2 : bounds.right() - 2 - text.width(font, line, TEXT));
                 text.draw(graphics, font, line, x, start + index * HudLayout.ROW_HEIGHT, TEXT);
             }
             graphics.disableScissor();

@@ -45,6 +45,13 @@ public final class HudLayout {
         return rows.subList(start, start + Math.min(capacity, rows.size() - start));
     }
 
+    public record Position(int columnDistance, int headerHeight, int layoutHeader) {
+        static final Position EXPANDED = new Position(0, HEADER, HEADER);
+
+        public int columnX(boolean left) { return left ? -columnDistance : columnDistance; }
+        public int headerY() { return headerHeight - HEADER; }
+    }
+
     public record Rect(int left, int top, int right, int bottom) {
         public int capacity() { return Math.max(0, (bottom - top - EDGE * 2) / ROW_HEIGHT); }
         public int firstY(boolean topAligned, int lineCount) {

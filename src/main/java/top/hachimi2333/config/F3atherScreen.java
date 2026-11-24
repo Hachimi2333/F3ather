@@ -1,8 +1,8 @@
 package top.hachimi2333.config;
 
+import com.nstut.openui.api.Divider;
 import com.nstut.openui.api.UIComponent;
 import com.nstut.openui.api.Ui;
-import com.nstut.openui.api.Divider;
 import com.nstut.openui.controls.Dialog;
 import com.nstut.openui.controls.ScrollView;
 import com.nstut.openui.layout.Alignment;
@@ -78,7 +78,9 @@ public final class F3atherScreen extends UiScreen {
                 Ui.text(label("general")).style(TextStyle.HEADING.withColor(TEXT)).height(23),
                 refresh, Ui.slider(rate, 1, 61).fillWidth().height(14),
                 preference("compatibility", settings.compatibility(),
-                        value -> ClientConfig.save(ClientConfig.current().withCompatibility(value))))
+                        value -> ClientConfig.save(ClientConfig.current().withCompatibility(value))),
+                preference("disable_animations", settings.disableAnimations(),
+                        value -> ClientConfig.save(ClientConfig.current().withDisableAnimations(value))))
                 .gap(3).width(preferencesWidth());
 
         var tabsHeading = Ui.row(Ui.text(label("tabs")).style(TextStyle.HEADING.withColor(TEXT)).flex(),
@@ -112,7 +114,7 @@ public final class F3atherScreen extends UiScreen {
     }
 
     private static UIComponent preference(String key, boolean enabled, Consumer<Boolean> onToggle) {
-        return Ui.row(Ui.text(label(key)).color(TEXT).ellipsis().flex(), toggle(enabled, onToggle))
+        return Ui.row(Ui.text(label(key)).color(TEXT).wrap().maxLines(2).ellipsis().flex(), toggle(enabled, onToggle))
                 .gap(4).align(Alignment.CENTER).height(24).fillWidth();
     }
 

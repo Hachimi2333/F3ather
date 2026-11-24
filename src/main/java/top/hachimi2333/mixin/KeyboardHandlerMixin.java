@@ -55,7 +55,7 @@ abstract class KeyboardHandlerMixin {
                 F3ather.HUD.cycle(settings);
             } else if (f3ather$f3Down && F3ather.HUD.supportsPages()
                     && (key == GLFW.GLFW_KEY_PAGE_UP || key == GLFW.GLFW_KEY_PAGE_DOWN)) {
-                F3ather.HUD.advancePage(key == GLFW.GLFW_KEY_PAGE_UP ? -1 : 1);
+                F3ather.HUD.advancePage(key == GLFW.GLFW_KEY_PAGE_UP ? -1 : 1, settings);
             } else {
                 return;
             }

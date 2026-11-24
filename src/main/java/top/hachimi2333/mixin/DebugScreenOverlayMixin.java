@@ -39,12 +39,14 @@ abstract class DebugScreenOverlayMixin {
     @Unique private boolean f3ather$preview;
     @Unique private boolean f3ather$originalRows;
     @Unique private boolean f3ather$editedFont;
+    @Unique private HudLayout.Position f3ather$position;
     @Unique private AddonEntries.Column f3ather$left;
     @Unique private AddonEntries.Column f3ather$right;
 
     @Inject(method = "toggleOverlay", at = @At("HEAD"))
-    private void f3ather$invalidate(CallbackInfo callback) {
+    private void f3ather$toggle(CallbackInfo callback) {
         F3ather.HUD.invalidate();
+        F3ather.HUD.resetMotion();
     }
 
     @Inject(method = "reset", at = @At("HEAD"))
@@ -58,6 +60,7 @@ abstract class DebugScreenOverlayMixin {
         boolean preview = minecraft.screen instanceof TabEditorScreen;
         if (settings.compatibility() && !preview) {
             F3ather.HUD.invalidate();
+            F3ather.HUD.resetMotion();
             original.call(graphics);
             return;
         }
@@ -80,6 +83,7 @@ abstract class DebugScreenOverlayMixin {
             f3ather$settings = null;
             f3ather$left = null;
             f3ather$right = null;
+            f3ather$position = null;
             f3ather$preview = false;
             f3ather$originalRows = false;
             if (editorSample) {
@@ -123,24 +127,39 @@ abstract class DebugScreenOverlayMixin {
             f3ather$originalRows = BuiltIn.VANILLA.id().equals(F3ather.HUD.activeTab());
         }
         if (f3ather$preview) return;
+        if (left) f3ather$position = F3ather.HUD.position(f3ather$settings, graphics.guiWidth());
         minecraft.getProfiler().push("f3ather_text");
         try {
             if (f3ather$originalRows) {
-                if (left) F3ather.HUD.drawHeader(graphics, f3ather$settings, BuiltIn.VANILLA.id(), 0, null);
-                graphics.pose().pushPose();
-                graphics.pose().translate(0, HudLayout.HEADER, 0);
-                f3ather$editedFont = true;
-                try {
-                    original.call(graphics, lines, left);
-                } finally {
-                    f3ather$editedFont = false;
-                    graphics.pose().popPose();
+                if (left && f3ather$position.headerHeight() != 0) {
+                    F3ather.HUD.drawHeader(graphics, f3ather$settings, BuiltIn.VANILLA.id(), f3ather$position.headerY(), null);
                 }
+                f3ather$drawVanillaColumn(graphics, lines, left, original);
             } else if (left) {
-                F3ather.HUD.drawSelected(graphics, f3ather$settings);
+                F3ather.HUD.drawSelected(graphics, f3ather$settings, f3ather$position);
             }
         } finally {
             minecraft.getProfiler().pop();
+        }
+    }
+
+    @Unique
+    private void f3ather$drawVanillaColumn(GuiGraphics graphics, List<String> lines, boolean left, Operation<Void> original) {
+        int width = graphics.guiWidth();
+        int offset = f3ather$position.columnX(left);
+        if (Math.abs(offset) >= width) return;
+        if (offset != 0) {
+            graphics.enableScissor(Math.max(0, offset), 0, Math.min(width, width + offset), graphics.guiHeight());
+        }
+        graphics.pose().pushPose();
+        graphics.pose().translate(offset, f3ather$position.headerHeight(), 0);
+        f3ather$editedFont = true;
+        try {
+            original.call(graphics, lines, left);
+        } finally {
+            f3ather$editedFont = false;
+            graphics.pose().popPose();
+            if (offset != 0) graphics.disableScissor();
         }
     }
 

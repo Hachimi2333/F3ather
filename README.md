@@ -6,18 +6,18 @@ Minecraft 1.21.1 · NeoForge 21.1.172–21.1.x · Java 21
 
 从 `build/libs` 取出 F3ather JAR，放入客户端的 `mods` 目录。
 
-- `F3` 打开调试 HUD。按 `Tab` 依次切换精简、性能、世界、模组、原版和已启用的自定义页。模组页在当前世界检测到其他模组通过 NeoForge DebugText 追加文字后出现。
+- `F3` 打开调试 HUD，文字从两侧滑入，标签栏从上方滑入。标签栏闲置 4 秒后收起，顶部文字随之上移。按 `Tab` 唤回标签栏并切到下一页。模组页在当前世界检测到其他模组通过 NeoForge DebugText 追加文字后出现。
 - 模组页和自定义页有多页时，按 `F3 + Page Up / Page Down` 翻页。`F3 + 1/2/3` 仍控制原版图表。
-- 按 `F3 + 0` 或从 **模组 → F3ather → 配置** 打开设置。可开关标签页、调整文本刷新率或开启兼容模式。兼容模式恢复原版 F3，`F3 + 0` 仍可访问设置。
+- 按 `F3 + 0` 或从 **模组 → F3ather → 配置** 打开设置。左栏可设置刷新率、兼容模式和禁用动画，右栏管理标签页。禁用动画后，标签栏仍按时收起。兼容模式恢复原版 F3，`F3 + 0` 仍可访问设置。
 - 新建自定义页后，按 `/` 或点击「添加」搜索条目。拖动条目可跨四角区域移动或排序。改动自动保存到 `config/f3ather-tabs.toml`。在标题画面打开编辑器时使用格式与原版一致的示例数据。
 
 ## Player guide
 
 Install the F3ather JAR from `build/libs` in your client's `mods` directory.
 
-- Open the overlay with `F3` and cycle through enabled tabs with `Tab`. The Mods tab appears after another mod adds a NeoForge DebugText line in the current world.
+- Press `F3` to slide in the debug overlay. After four seconds of inactivity, the header slides away and the top rows move up. Press `Tab` to bring back the header and switch to the next tab. The Mods tab appears after another mod adds a NeoForge DebugText line in the current world.
 - Use `F3 + Page Up / Page Down` for long Mods or custom tabs. The native debug charts still use `F3 + 1/2/3`.
-- Use `F3 + 0` or **Mods → F3ather → Config** to manage tabs, change the text refresh rate, or restore the native F3 through Compatibility Mode.
+- Use `F3 + 0` or **Mods → F3ather → Config** to manage tabs, set the text refresh rate, disable animations, or restore the native F3 through Compatibility Mode. The header still auto-hides with animations disabled.
 - In a custom tab, press `/` or select **Add** to search. Drag entries between corners or reorder them within a corner. Changes save to `config/f3ather-tabs.toml`. The editor uses sample values on the title screen.
 
 ## 构建与实机验收 / Build and in-game checks
@@ -31,7 +31,11 @@ Install the F3ather JAR from `build/libs` in your client's `mods` directory.
 .\gradlew.bat runClient
 ```
 
-两个版本分别确认原版数据行和图表、`Tab` 切换和多页翻页、兼容模式下的多人玩家列表、F3ather 图标，以及自定义页的搜索、跨区拖放和重启后的保存结果。主设置和编辑器在游戏语言为英语和简体中文时各检查一次。
+在两个版本上分别检查以下项目。
+
+- 中英文和不同 GUI 缩放下的双栏设置页、按钮文字对齐、标签图标和提示。
+- 编辑器工具条居中，四角可拖放。用 `/` 或「添加」打开搜索，键入和粘贴中英文，检查光标、筛选、回车和 Esc。重启后确认设置和自定义标签已保存。
+- F3 左右文字和顶栏进场，闲置 4 秒收起，`Tab` 唤回并切页，翻页唤回页码。检查原版页、四角、原版图表、多人按键和兼容模式。启用「禁用动画」后确认顶栏和文字仍按时切换位置。
 
 The JAR embeds OpenUI MC 0.0.16. The build verifies its SHA-256. Gradle and Maven mirrors are used by default, while NeoForge artifacts come from the official repository. Use `-PuseChinaMirrors=false` to disable the Gradle and Maven Central mirrors. Minecraft assets can use an `NFRT_ASSET_REPOSITORY` mirror such as `https://bmclapi2.bangbang93.com/assets/`.
 

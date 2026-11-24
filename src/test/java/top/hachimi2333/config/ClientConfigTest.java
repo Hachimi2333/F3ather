@@ -2,6 +2,8 @@ package top.hachimi2333.config;
 
 import com.electronwill.nightconfig.toml.TomlFormat;
 import org.junit.jupiter.api.Test;
+import top.hachimi2333.overlay.OverlaySettings;
+import top.hachimi2333.overlay.OverlaySettings.BuiltIn;
 import top.hachimi2333.overlay.OverlaySettings.Region;
 import top.hachimi2333.overlay.OverlaySettings.Tab;
 
@@ -22,6 +24,7 @@ final class ClientConfigTest {
         config.set("builtIn.simple", false);
         config.set("refreshHz", 0);
         config.set("compatibility", true);
+        config.set("disableAnimations", true);
         var format = TomlFormat.instance();
         var restored = format.createParser().parse(format.createWriter().writeToString(config));
 
@@ -31,6 +34,23 @@ final class ClientConfigTest {
         assertEquals(false, restored.get("builtIn.simple"));
         assertEquals(0, restored.<Integer>get("refreshHz"));
         assertEquals(true, restored.get("compatibility"));
+        assertEquals(true, restored.get("disableAnimations"));
+    }
+
+    @Test
+    void addingTheAnimationOptionPreservesExistingSettings() {
+        var config = TomlFormat.newConfig();
+        ClientConfig.SPEC.correct(config);
+        config.remove("disableAnimations");
+        config.set("refreshHz", 30);
+        config.set("builtIn.world", false);
+        ClientConfig.SPEC.correct(config);
+
+        assertEquals(false, config.get("disableAnimations"));
+        assertEquals(30, config.<Integer>get("refreshHz"));
+        assertEquals(false, config.get("builtIn.world"));
+        assertTrue(OverlaySettings.DEFAULT.withDisableAnimations(true).withRefresh(30)
+                .withBuiltIn(BuiltIn.WORLD, false).withCompatibility(true).disableAnimations());
     }
 
     @Test

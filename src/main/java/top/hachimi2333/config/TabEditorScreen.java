@@ -214,7 +214,7 @@ public final class TabEditorScreen extends UiScreen {
             }
             placements = visible;
             graphics.drawManaged(() -> {
-                F3ather.HUD.drawPreview(graphics, ClientConfig.current(), tab, y, bottom, rows, page, pages);
+                F3ather.HUD.drawPreview(graphics, ClientConfig.current(), tab, bottom, rows, page, pages);
                 if (!uiRuntime().overlays().hasBlockingOverlay()) drawControls(graphics, mouseX, mouseY, tab);
             });
         }
