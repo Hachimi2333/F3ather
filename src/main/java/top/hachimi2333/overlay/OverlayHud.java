@@ -96,11 +96,10 @@ public final class OverlayHud {
         return clock.due(System.nanoTime(), settings.refreshHz());
     }
 
-    public AddonEntries.Column column(Minecraft mc, boolean isLeft, List<String> fresh) {
+    public AddonEntries.Column column(boolean isLeft, List<AddonEntries.Row> fresh) {
         if (fresh != null) {
-            var rows = VanillaEntry.label(fresh, isLeft, mc.getSingleplayerServer() != null, mc.isDemo());
-            if (isLeft) left = rows;
-            else right = rows;
+            if (isLeft) left = fresh;
+            else right = fresh;
         }
         return addons.column(isLeft, isLeft ? left : right);
     }

@@ -69,6 +69,12 @@ final class FixtureChecks {
         if (!owners.equals(Set.of("f3ather_fixture", "f3ather_fixture_peer"))) {
             throw new IllegalStateException("Shared label attribution: " + owners);
         }
+        var beforeEvent = F3ather.ADDONS.entries().stream().filter(entry -> entry.source().id().isEmpty())
+                .map(entry -> entry.name()).collect(Collectors.toSet());
+        if (!beforeEvent.contains("Before event (game)") || (!ModList.get().isLoaded("sodium")
+                && !beforeEvent.contains("Before event (system)"))) {
+            throw new IllegalStateException("Collector insertions not detected: " + beforeEvent);
+        }
     }
 
     static void openSettings() {

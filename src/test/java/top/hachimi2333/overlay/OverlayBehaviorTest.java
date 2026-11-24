@@ -140,4 +140,91 @@ final class OverlayBehaviorTest {
         assertEquals(new Row("vanilla:target_block", "powered: §atrue"), right.get(7));
         assertEquals(new Row("vanilla:target_entity", "minecraft:cow"), right.getLast());
     }
+
+    @Test
+    void preEventRowsJoinEventAdditionsWithoutShiftingVanillaGroups() {
+        var leftTrace = new RawDebugRows();
+        String[] game = {"Minecraft 1.21.1", "60 fps", "server", "C: 1", "E: 1", "P: 0", "Cache"};
+        leftTrace.initial(game);
+        leftTrace.append("ServerChunkCache: 5");
+        leftTrace.append("XYZ: 10.0 / 20.0 / 30.0");
+        var left = new ArrayList<>(List.of(game));
+        left.add(2, "§7p50=§r100 §7p98=§r80 §7p99.5=§r60§7 fps");
+        left.add(game[0]);
+        left.add("ServerChunkCache: 5");
+        left.add("XYZ: 10.0 / 20.0 / 30.0");
+
+        var rightTrace = new RawDebugRows();
+        String[] system = {"Java: 21", "Mem: 25%", "Allocation rate: 0", "Allocated: 40%", "",
+                "CPU: CPU", "", "Display: 10x10", "GPU name", "4.6.0"};
+        rightTrace.initial(system);
+        var right = new ArrayList<>(List.of(system));
+        right.add(4, "Off-Heap: +25MB");
+        right.addAll(List.of("§aSodium Renderer (0.8.13+mc1.21.1)", "Pools: Geometry 194/422 MiB",
+                "Injected by another mod: active", "Chunk Builder: Schd=00"));
+        for (var line : List.of("", "§nTargeted Block: 1, 2, 3", "minecraft:lever", "powered: §atrue")) {
+            rightTrace.append(line);
+            right.add(line);
+        }
+        int tagStart = right.size();
+        right.add("#minecraft:mineable/axe");
+        rightTrace.appendWithPrefix(right, tagStart, "#");
+
+        var addons = new AddonEntries();
+        var source = new Source("fixture", "Fixture");
+        var groups = new LinkedHashMap<String, List<String>>();
+        var leftAdded = new ArrayList<String>();
+        var rightAdded = new ArrayList<String>();
+        var leftRows = leftTrace.resolve(left, true, true, false, true);
+        var rightRows = rightTrace.resolve(right, false, true, false, true);
+        var leftColumn = new Column(true, leftRows, caller -> source);
+        var rightColumn = new Column(false, rightRows, caller -> source);
+        rightColumn.set(4, "Off-Heap: +26MB");
+        rightColumn.add("Event: ready");
+
+        assertTrue(addons.collect(leftColumn, groups, leftAdded));
+        assertTrue(addons.collect(rightColumn, groups, rightAdded));
+        assertEquals(List.of("server"), groups.get("vanilla:server"));
+        assertEquals(List.of("XYZ: 10.0 / 20.0 / 30.0"), groups.get("vanilla:xyz"));
+        assertEquals(List.of("GPU name"), groups.get("vanilla:gpu"));
+        assertEquals(List.of("#minecraft:mineable/axe"), groups.get("vanilla:target_block").subList(3, 4));
+        assertEquals(List.of(left.get(2), game[0]), leftAdded);
+        assertEquals(List.of("Off-Heap: +26MB", right.get(11), right.get(12), right.get(13), right.get(14),
+                "Event: ready"), rightAdded);
+        assertEquals(5, addons.entries().stream().filter(entry -> entry.source().id().equals("sodium")).count());
+        assertEquals(2, addons.entries().stream().filter(entry -> entry.source().id().isEmpty()).count());
+        assertEquals(right, new Column(false, rightRows, caller -> source));
+    }
+
+    @Test
+    void stockRowsWithOptionalFieldsDoNotEnableTheModsTab() {
+        var trace = new RawDebugRows();
+        String[] system = {"Java: 21", "Mem: 25%", "Allocation rate: 0", "Allocated: 40%", "",
+                "CPU: CPU", "", "Display: 10x10", "GPU name", "4.6.0"};
+        trace.initial(system);
+        trace.prepend("演示时间");
+        var actual = new ArrayList<>(List.of(system));
+        actual.addFirst("演示时间");
+        var addons = new AddonEntries();
+        var rows = trace.resolve(actual, false, false, true, false);
+        var groups = new LinkedHashMap<String, List<String>>();
+        boolean detected = addons.collect(new Column(false, rows, null), groups, new ArrayList<>());
+        assertFalse(detected);
+        assertEquals(List.of("演示时间"), groups.get("vanilla:demo"));
+        assertFalse(OverlaySettings.DEFAULT.visibleTabs(detected).contains("mods"));
+        assertTrue(addons.entries().isEmpty());
+    }
+
+    @Test
+    void replacedCollectorStillAllowsEventAdditions() {
+        var trace = new RawDebugRows();
+        var rows = trace.resolve(List.of("Java: 21"), false, false, false, true);
+        var column = new Column(false, rows, caller -> new Source("fixture", "Fixture"));
+        column.add("Event row");
+        var groups = new LinkedHashMap<String, List<String>>();
+        var added = new ArrayList<String>();
+        assertTrue(new AddonEntries().collect(column, groups, added));
+        assertEquals(List.of("Java: 21"), groups.get("vanilla:java"));
+        assertEquals(List.of("Event row"), added);
+    }
 }

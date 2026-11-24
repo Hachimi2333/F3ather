@@ -19,7 +19,7 @@ public final class AddonEntries {
     private static final int MAX_LABEL = 80;
     private static final int MAX_SOURCE_LOOKUPS = 128;
     private static final StackWalker WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
-    private static final Source UNKNOWN = new Source("", "");
+    static final Source UNKNOWN = new Source("", "");
 
     private final Map<String, Entry> entries = new LinkedHashMap<>();
     private Map<String, Source> sources;
@@ -136,7 +136,9 @@ public final class AddonEntries {
         return plain.toString();
     }
 
-    public record Row(String id, String text) {}
+    public record Row(String id, String text, Source source) {
+        public Row(String id, String text) { this(id, text, null); }
+    }
     public record Source(String id, String name) {}
     public record Entry(String id, Source source, String name, String sample) {
         public String title() { return name.isEmpty() ? sample : name; }
@@ -156,7 +158,10 @@ public final class AddonEntries {
             lines = new ArrayList<>(rows.size());
             for (Row row : rows) {
                 String value = row.text() == null ? null : new String(row.text());
-                if (value != null) original.put(value, row);
+                if (value != null) {
+                    if (row.source() == null) original.put(value, row);
+                    else added.put(value, row.source());
+                }
                 lines.add(value);
             }
         }
