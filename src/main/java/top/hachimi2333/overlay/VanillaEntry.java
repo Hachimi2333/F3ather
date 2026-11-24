@@ -1,5 +1,7 @@
 package top.hachimi2333.overlay;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static top.hachimi2333.overlay.OverlaySettings.BuiltIn.COMMON;
@@ -7,79 +9,68 @@ import static top.hachimi2333.overlay.OverlaySettings.BuiltIn.LIGHT;
 import static top.hachimi2333.overlay.OverlaySettings.BuiltIn.ORIGINAL;
 
 public enum VanillaEntry {
-    FPS(LIGHT),
-    XYZ(LIGHT, "XYZ: "),
-    CHUNK_RELATIVE(LIGHT, "Chunk-relative: "),
-    FACING(LIGHT, "Facing: "),
-    BIOME(LIGHT, "Biome: "),
-    BLOCK_POSITION(COMMON, "Block: "),
-    CHUNK_POSITION(COMMON, "Chunk: ", "Waiting for chunk..."),
+    FPS(LIGHT, true),
+    XYZ(LIGHT),
+    CHUNK_RELATIVE(LIGHT, true),
+    FACING(LIGHT),
+    BIOME(LIGHT),
+    BLOCK_POSITION(COMMON),
+    CHUNK_POSITION(COMMON),
     DIMENSION(COMMON),
-    LIGHT_LEVEL(COMMON, "Client Light: ", "Server Light: "),
+    LIGHT_LEVEL(COMMON),
     TARGET_BLOCK(COMMON),
     TARGET_FLUID(COMMON),
     TARGET_ENTITY(COMMON),
-    VERSION(ORIGINAL, "Minecraft "),
-    SERVER(ORIGINAL, "Integrated server @ "),
-    RENDERED_CHUNKS(ORIGINAL, "C: "),
-    RENDERED_ENTITIES(ORIGINAL, "E: "),
-    PARTICLES(ORIGINAL, "P: "),
-    CLIENT_CHUNKS(ORIGINAL, "Client Chunk Cache: "),
-    SERVER_CHUNKS(ORIGINAL, "ServerChunkCache: ", "Server Chunk Cache: "),
-    HEIGHTMAPS(ORIGINAL, "CH ", "SH "),
-    DIFFICULTY(ORIGINAL, "Local Difficulty: "),
-    BLENDING(ORIGINAL, "Blending: "),
-    WORLD_GENERATION(ORIGINAL, "NoiseRouter ", "Biome builder "),
-    SPAWNING(ORIGINAL, "SC: "),
-    POST_EFFECT(ORIGINAL, "Shader: "),
-    SOUND(ORIGINAL, "Sounds: "),
-    DEBUG_CHART_HINT(ORIGINAL, "Debug charts: "),
-    DEBUG_HELP(ORIGINAL, "For help: press F3 + Q"),
-    DEMO(ORIGINAL),
-    JAVA(ORIGINAL, "Java: "),
-    MEMORY(ORIGINAL, "Mem: "),
-    ALLOCATION_RATE(ORIGINAL, "Allocation rate: "),
-    ALLOCATED(ORIGINAL, "Allocated: "),
-    CPU(ORIGINAL, "CPU: "),
-    DISPLAY(ORIGINAL, "Display: "),
-    GPU(ORIGINAL),
-    OPENGL(ORIGINAL);
+    VERSION(ORIGINAL, true),
+    SERVER(ORIGINAL, true),
+    RENDERED_CHUNKS(ORIGINAL, true),
+    RENDERED_ENTITIES(ORIGINAL, true),
+    PARTICLES(ORIGINAL, true),
+    CLIENT_CHUNKS(ORIGINAL, true),
+    SERVER_CHUNKS(ORIGINAL),
+    HEIGHTMAPS(ORIGINAL),
+    DIFFICULTY(ORIGINAL),
+    BLENDING(ORIGINAL),
+    WORLD_GENERATION(ORIGINAL),
+    SPAWNING(ORIGINAL),
+    POST_EFFECT(ORIGINAL),
+    SOUND(ORIGINAL),
+    DEBUG_CHART_HINT(ORIGINAL, true),
+    DEBUG_HELP(ORIGINAL, true),
+    DEMO(ORIGINAL, true),
+    JAVA(ORIGINAL, true),
+    MEMORY(ORIGINAL, true),
+    ALLOCATION_RATE(ORIGINAL, true),
+    ALLOCATED(ORIGINAL, true),
+    CPU(ORIGINAL, true),
+    DISPLAY(ORIGINAL, true),
+    GPU(ORIGINAL, true),
+    OPENGL(ORIGINAL, true),
+    GRAPHICS(ORIGINAL, true);
 
-    private static final VanillaEntry[] ENTRIES = values();
+    public static final List<VanillaEntry> ALL = List.of(values());
+    public static final List<String> IDS = Arrays.stream(values()).map(VanillaEntry::id).toList();
 
-    private final String translationName = name().toLowerCase(Locale.ROOT);
-    private final String id = "vanilla:" + translationName;
+    private final String name = name().toLowerCase(Locale.ROOT);
+    private final String id = "vanilla:" + name;
     private final OverlaySettings.BuiltIn minimum;
-    private final String[] prefixes;
+    private final boolean allowedInReduced;
 
-    VanillaEntry(OverlaySettings.BuiltIn minimum, String... prefixes) {
+    VanillaEntry(OverlaySettings.BuiltIn minimum) {
+        this(minimum, false);
+    }
+
+    VanillaEntry(OverlaySettings.BuiltIn minimum, boolean allowedInReduced) {
         this.minimum = minimum;
-        this.prefixes = prefixes;
+        this.allowedInReduced = allowedInReduced;
     }
 
-    public String id() {
-        return id;
-    }
-
-    public String translationKey() {
-        return "f3ather.entry." + translationName;
-    }
-
-    public OverlaySettings.BuiltIn minimum() {
-        return minimum;
-    }
-
-    static VanillaEntry matchPrefix(String line, boolean left) {
-        for (VanillaEntry entry : ENTRIES) {
-            if (left != (entry.ordinal() < DEMO.ordinal())) {
-                continue;
-            }
-            for (String prefix : entry.prefixes) {
-                if (line.startsWith(prefix)) {
-                    return entry;
-                }
-            }
-        }
-        return null;
-    }
+    public String id() { return id; }
+    public String translationKey() { return "f3ather.entry." + name; }
+    public String descriptionKey() { return "f3ather.description." + name; }
+    public OverlaySettings.BuiltIn minimum() { return minimum; }
+    public boolean allowedInReduced() { return allowedInReduced; }
+    public boolean rightColumn() { return ordinal() >= DEMO.ordinal() || this == TARGET_BLOCK
+            || this == TARGET_FLUID || this == TARGET_ENTITY; }
+    public boolean slow() { return ordinal() >= JAVA.ordinal(); }
 }

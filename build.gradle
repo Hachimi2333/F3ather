@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     id 'java'
     id 'net.neoforged.moddev' version '2.0.148'
@@ -13,6 +15,19 @@ base {
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 repositories {
+    exclusiveContent {
+        forRepository {
+            ivy {
+                // Map the public release to its upstream coordinates for Jar-in-Jar negotiation.
+                url = 'https://cursemaven.com'
+                patternLayout {
+                    artifact 'curse/maven/openui-mc-1661978/9426213/openui-mc-1661978-9426213.[ext]'
+                }
+                metadataSources { artifact() }
+            }
+        }
+        filter { includeVersion('com.nstut', 'openui-mc-neoforge-1.21.1', '0.0.16') }
+    }
     if (providers.gradleProperty('useChinaMirrors').get().toBoolean()) {
         def centralMirror = maven {
             name = 'Aliyun Maven Central'
@@ -34,14 +49,39 @@ sourceSets {
 }
 
 dependencies {
+    def openUi = 'com.nstut:openui-mc-neoforge-1.21.1:0.0.16'
+    compileOnly(openUi)
+    jarJar(openUi) {
+        version { strictly '[0.0.16]' }
+    }
     testImplementation platform('org.junit:junit-bom:5.13.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+tasks.register('verifyOpenUi') {
+    def openUiJar = configurations.compileClasspath.incoming.artifactView {
+        componentFilter { it instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier &&
+                it.group == 'com.nstut' && it.module == 'openui-mc-neoforge-1.21.1' }
+    }.files
+    inputs.files(openUiJar)
+    doLast {
+        def digest = MessageDigest.getInstance('SHA-256')
+                .digest(openUiJar.singleFile.bytes).encodeHex().toString()
+        if (digest != 'cc2ba4e10cc4e5aeca8589d7305148c8379a5b9f9198a0e17cceefdb94c75894') {
+            throw new GradleException('OpenUI MC 0.0.16 checksum mismatch')
+        }
+    }
+}
+
+tasks.named('compileJava') { dependsOn('verifyOpenUi') }
+
 tasks.named('test', Test) {
     useJUnitPlatform()
 }
+
+def fixtureDirectory = providers.gradleProperty('fixtureBaseline').isPresent() ? 'fixture-baseline'
+        : 'fixture'
 
 neoForge {
     version = neoVersion
@@ -53,13 +93,13 @@ neoForge {
     runs {
         client {
             client()
-            loadedMods = [mods.f3ather]
+            gameDirectory = layout.buildDirectory.dir('client').get().asFile
+            loadedMods = []
         }
         fixtureClient {
             client()
-            gameDirectory = project.file('runs/fixture')
-            loadedMods = providers.gradleProperty('fixtureBaseline').isPresent()
-                    ? [mods.f3ather_fixture] : [mods.f3ather, mods.f3ather_fixture]
+            gameDirectory = layout.buildDirectory.dir(fixtureDirectory).get().asFile
+            loadedMods = [mods.f3ather_fixture]
             if (providers.gradleProperty('fixtureAuto').isPresent()) {
                 systemProperty 'f3ather.fixture.auto', 'true'
             }
@@ -98,4 +138,16 @@ tasks.named('processResources', ProcessResources) {
 
 tasks.named('jar', Jar) {
     from('LICENSE')
+}
+
+// Exercise the single production JAR through NeoForge's normal mods folder discovery.
+['Client': 'client', 'FixtureClient': fixtureDirectory].each { suffix, directory ->
+    if (suffix != 'FixtureClient' || !providers.gradleProperty('fixtureBaseline').isPresent()) {
+        def stage = tasks.register("stage${suffix}Mod", Copy) {
+            from(tasks.named('jar', Jar))
+            into(layout.buildDirectory.dir("${directory}/mods"))
+            rename { 'f3ather-under-test.jar' }
+        }
+        tasks.named("run${suffix}") { dependsOn(stage) }
+    }
 }

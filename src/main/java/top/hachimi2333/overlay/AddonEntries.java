@@ -1,84 +1,243 @@
 package top.hachimi2333.overlay;
 
-import java.util.Collections;
+import net.neoforged.fml.ModList;
+
+import java.util.AbstractList;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.RandomAccess;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public final class AddonEntries {
-    public static final int LIMIT = 512;
-    private static final int MAX_LABEL_LENGTH = 80;
-    private static final String LEFT = "addon:left:";
-    private static final String RIGHT = "addon:right:";
+    private static final int LIMIT = 512;
+    private static final int MAX_LABEL = 80;
+    private static final int MAX_SOURCE_LOOKUPS = 128;
+    private static final StackWalker WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
+    private static final Source UNKNOWN = new Source("", "");
 
-    private final Map<String, String> labels = new LinkedHashMap<>();
+    private final Map<String, Entry> entries = new LinkedHashMap<>();
+    private Map<String, Source> sources;
 
-    public static String otherId(boolean left) {
-        return left ? LEFT : RIGHT;
+    public List<Entry> entries() {
+        return List.copyOf(entries.values());
     }
 
-    public static boolean isAddonId(String id) {
-        return id.startsWith(LEFT) || id.startsWith(RIGHT);
-    }
-
-    public static boolean isLeft(String id) {
-        return id.startsWith(LEFT);
-    }
-
-    public static String labelFromId(String id) {
-        int offset = isLeft(id) ? LEFT.length() : RIGHT.length();
-        return id.substring(offset);
-    }
-
-    public Map<String, String> labels() {
-        return Collections.unmodifiableMap(labels);
-    }
-
-    String identify(String line, boolean left, OverlaySettings settings) {
-        String prefix = otherId(left);
-        String label = findLabel(line);
-        if (label == null) {
-            return prefix;
+    private Source findSource(Class<?> caller) {
+        if (sources == null) {
+            sources = new HashMap<>();
+            for (var file : ModList.get().getModFiles()) {
+                var mods = file.getMods();
+                if (mods.size() == 1) {
+                    var mod = mods.getFirst();
+                    sources.put(file.moduleName(), new Source(mod.getModId(), mod.getDisplayName()));
+                }
+            }
         }
-        String id = prefix + label;
-        if (labels.containsKey(id) || settings.overrides().containsKey(id)) {
-            return id;
+        Source direct = sourceOf(caller);
+        if (direct != null) return direct;
+        return WALKER.walk(frames -> frames.skip(1)
+                .takeWhile(frame -> !frame.getClassName().equals("net.neoforged.bus.EventBus"))
+                .limit(24)
+                .map(frame -> sourceOf(frame.getDeclaringClass()))
+                .filter(source -> source != null)
+                .findFirst().orElse(UNKNOWN));
+    }
+
+    private Source sourceOf(Class<?> caller) {
+        Source source = sources.get(caller.getModule().getName());
+        return source == null || source.id().equals("f3ather")
+                || source.id().equals("minecraft") || source.id().equals("neoforge") ? null : source;
+    }
+
+    public Column column(boolean left, List<Row> rows, boolean trackSources) {
+        return new Column(left, rows, trackSources ? this::findSource : null);
+    }
+
+    private Entry discover(boolean left, Map<String, Integer> occurrences, Source source, String text) {
+        String side = left ? "left:" : "right:";
+        String label = findLabel(text);
+        String name = label == null ? "" : label;
+        String prefix = "addon:" + side;
+        String owner = source.id().isEmpty() ? "unknown" : source.id();
+        String slot = prefix + owner + ":" + name;
+        int occurrence = occurrences.merge(slot, 1, Integer::sum);
+        String id = slot + ":" + occurrence;
+        if (!entries.containsKey(id) && entries.size() >= LIMIT) {
+            id = prefix + "overflow";
+            source = UNKNOWN;
+            name = "";
         }
-        if (labels.size() >= LIMIT) {
-            return prefix;
+        Entry previous = entries.get(id);
+        if (previous != null) return previous;
+        String example = stripFormatting(text);
+        if (example.length() > 150) example = example.substring(0, 150);
+        Entry entry = new Entry(id, source, name, example, label == null ? prefix : prefix + label, prefix);
+        entries.put(id, entry);
+        return entry;
+    }
+
+    public void collect(Column column, Map<String, List<String>> grouped, OverlaySettings settings) {
+        Map<String, Integer> occurrences = column.source == null ? null : new HashMap<>();
+        for (String text : column) {
+            if (text == null || text.isBlank()) continue;
+            Row base = column.original.get(text);
+            if (base != null) {
+                grouped.computeIfAbsent(base.id(), ignored -> new ArrayList<>()).add(text);
+                continue;
+            }
+            if (occurrences == null) continue;
+            Source source = column.added.getOrDefault(text, UNKNOWN);
+            Entry entry = discover(column.left, occurrences, source, text);
+            if (settings.showsAddon(entry.id(), entry.legacyId(), entry.legacyOther())) {
+                grouped.computeIfAbsent(entry.id(), ignored -> new ArrayList<>()).add(text);
+            }
         }
-        labels.put(id, label);
-        return id;
     }
 
     private static String findLabel(String line) {
-        int end = Math.min(line.length(), MAX_LABEL_LENGTH + 1);
-        for (int i = 0; i < end; i++) {
-            char ch = line.charAt(i);
-            if (ch == '：' || ((ch == ':' || ch == '=') && i + 1 < line.length()
-                    && Character.isWhitespace(line.charAt(i + 1)))) {
-                String label = stripFormatting(line.substring(0, i)).strip();
-                if (label.isEmpty() || !Character.isLetter(label.codePointAt(0))) {
-                    return null;
-                }
-                return label;
+        String plain = stripFormatting(line);
+        int limit = Math.min(plain.length(), MAX_LABEL + 1);
+        for (int index = 0; index < limit; index++) {
+            char c = plain.charAt(index);
+            if (c == '：' || ((c == ':' || c == '=') && index + 1 < plain.length()
+                    && Character.isWhitespace(plain.charAt(index + 1)))) {
+                String label = plain.substring(0, index).strip();
+                return !label.isEmpty() && Character.isLetter(label.codePointAt(0)) ? label : null;
             }
         }
         return null;
     }
 
-    static String stripFormatting(String line) {
-        int firstCode = line.indexOf('§');
-        if (firstCode < 0) {
-            return line;
-        }
-        StringBuilder plain = new StringBuilder(line.length()).append(line, 0, firstCode);
-        for (int i = firstCode; i < line.length(); i++) {
-            if (line.charAt(i) == '§' && i + 1 < line.length()) {
-                i++;
-            } else {
-                plain.append(line.charAt(i));
-            }
+    public static String stripFormatting(String text) {
+        int start = text.indexOf('§');
+        if (start < 0) return text;
+        var plain = new StringBuilder(text.length()).append(text, 0, start);
+        for (int i = start; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (ch == '§' && i + 1 < text.length()) i++;
+            else plain.append(ch);
         }
         return plain.toString();
+    }
+
+    public record Row(String id, String text) {}
+    public record Source(String id, String name) {}
+    public record Entry(String id, Source source, String name, String sample, String legacyId, String legacyOther) {}
+
+    public static final class Column extends AbstractList<String> implements RandomAccess {
+        private final boolean left;
+        private final List<String> lines;
+        private final Map<String, Row> original = new IdentityHashMap<>();
+        private final Map<String, Source> added = new IdentityHashMap<>();
+        private final Function<Class<?>, Source> source;
+        private int lookups;
+
+        Column(boolean left, List<Row> rows, Function<Class<?>, Source> source) {
+            this.left = left;
+            this.source = source;
+            lines = new ArrayList<>(rows.size());
+            for (Row row : rows) {
+                String value = new String(row.text());
+                original.put(value, row);
+                lines.add(value);
+            }
+        }
+
+        @Override
+        public String get(int index) { return lines.get(index); }
+
+        @Override
+        public int size() { return lines.size(); }
+
+        @Override
+        public String set(int index, String value) {
+            String old = lines.set(index, value);
+            if (value != null && !original.containsKey(value) && !added.containsKey(value)) {
+                Row row = original.get(old);
+                if (row != null) original.put(value, row);
+                else if (source != null) added.put(value, resolve(WALKER.getCallerClass()));
+            }
+            return old;
+        }
+
+        @Override
+        public void add(int index, String value) {
+            insert(index, value, source == null ? null : WALKER.getCallerClass());
+        }
+
+        @Override
+        public boolean add(String value) {
+            insert(lines.size(), value, source == null ? null : WALKER.getCallerClass());
+            return true;
+        }
+
+        private void insert(int index, String value, Class<?> caller) {
+            if (added.containsKey(value)) value = new String(value);
+            lines.add(index, value);
+            modCount++;
+            if (caller != null) record(value, () -> resolve(caller));
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends String> values) {
+            return insertAll(size(), values, source == null ? null : WALKER.getCallerClass());
+        }
+
+        @Override
+        public boolean addAll(int index, Collection<? extends String> values) {
+            return insertAll(index, values, source == null ? null : WALKER.getCallerClass());
+        }
+
+        private boolean insertAll(int index, Collection<? extends String> values, Class<?> caller) {
+            if (caller == null) {
+                if (!lines.addAll(index, values)) return false;
+                modCount++;
+                return true;
+            }
+            var copy = new ArrayList<String>(values);
+            if (copy.isEmpty()) return false;
+            Source owner = resolve(caller);
+            for (int i = 0; i < copy.size(); i++) {
+                String value = copy.get(i);
+                if (added.containsKey(value)) {
+                    value = new String(value);
+                    copy.set(i, value);
+                }
+                record(value, () -> owner);
+            }
+            lines.addAll(index, copy);
+            modCount++;
+            return true;
+        }
+
+        @Override
+        public String remove(int index) {
+            String old = lines.remove(index);
+            modCount++;
+            return old;
+        }
+
+        @Override
+        protected void removeRange(int from, int to) {
+            if (from == to) return;
+            lines.subList(from, to).clear();
+            modCount++;
+        }
+
+        private void record(String value, Supplier<Source> owner) {
+            if (value != null && !original.containsKey(value) && !added.containsKey(value)) {
+                added.put(value, owner.get());
+            }
+        }
+
+        private Source resolve(Class<?> caller) {
+            return lookups++ < MAX_SOURCE_LOOKUPS ? source.apply(caller) : UNKNOWN;
+        }
     }
 }
