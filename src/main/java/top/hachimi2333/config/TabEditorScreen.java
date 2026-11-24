@@ -7,7 +7,6 @@ import com.nstut.openui.input.EventType;
 import com.nstut.openui.input.PointerEvent;
 import com.nstut.openui.layout.Alignment;
 import com.nstut.openui.minecraft.UiScreen;
-import com.nstut.openui.theme.TextStyle;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -24,16 +23,15 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.function.UnaryOperator;
 
-import static top.hachimi2333.config.F3atherScreen.ACCENT;
-import static top.hachimi2333.config.F3atherScreen.TEXT;
 import static top.hachimi2333.config.F3atherScreen.label;
+import static top.hachimi2333.config.SettingsUi.*;
 
 public final class TabEditorScreen extends UiScreen {
-    private static final int TOOLBAR = 30;
     private static final int ROW = HudLayout.ROW_HEIGHT;
     private final Screen parent;
     private final String id;
     private PreviewCanvas canvas;
+    private UIComponent tools;
     private EntrySearch search;
     private boolean suppressSlash;
 
@@ -45,22 +43,25 @@ public final class TabEditorScreen extends UiScreen {
 
     @Override
     protected UIComponent buildUI() {
+        uiRuntime().theme(THEME);
         Tab tab = currentTab();
-        var toolbar = Ui.row(Ui.button(label("back"), this::onClose).small().ghost(),
+        var back = label("back");
+        var add = label("add_entry");
+        int buttonWidth = Math.max(font.width(back), font.width(add)) + 16;
+        var toolbar = Ui.row(button(back, this::onClose).width(buttonWidth),
                 Ui.text(Component.literal(tab == null ? "" : tab.name()))
-                        .style(TextStyle.HEADING.withColor(TEXT)).centered().ellipsis().flex(),
-                Ui.button(label("add_entry"), this::openSearch).small().primary())
-                .gap(6).align(Alignment.CENTER).fillWidth().height(20);
+                        .color(TEXT).centered().ellipsis().flex(),
+                button(add, this::openSearch).filled().width(buttonWidth))
+                .gap(5).align(Alignment.CENTER).fillWidth().height(21);
+        tools = panel(toolbar, 4).width(Math.min(230, width - 28));
         canvas = new PreviewCanvas();
-        return Ui.column(Ui.padding(6, 5, toolbar).fillWidth().height(TOOLBAR),
-                canvas.fillWidth().flex()).fillWidth().fillHeight();
+        return Ui.stack(canvas.fillWidth().fillHeight(), tools).align(Alignment.CENTER, Alignment.CENTER)
+                .fillWidth().fillHeight();
     }
 
     @Override
     public void renderBackground(GuiGraphics graphics, int x, int y, float delta) {
         if (minecraft.level == null) renderPanorama(graphics, delta);
-        graphics.fill(0, 0, width, TOOLBAR, 0xd918222a);
-        graphics.fill(0, TOOLBAR - 1, width, TOOLBAR, 0x665a737d);
     }
 
     @Override
@@ -219,7 +220,9 @@ public final class TabEditorScreen extends UiScreen {
         }
 
         private void drawControls(GuiGraphics graphics, int mouseX, int mouseY, Tab tab) {
-            var hovered = at(mouseX, mouseY);
+            boolean overTools = mouseX >= tools.getX() && mouseX < tools.getX() + tools.getWidth()
+                    && mouseY >= tools.getY() && mouseY < tools.getY() + tools.getHeight();
+            var hovered = overTools ? null : at(mouseX, mouseY);
             if (!dragging && hovered != null) {
                 graphics.renderOutline(hovered.left(), hovered.top(), hovered.right() - hovered.left(),
                         hovered.bottom() - hovered.top(), 0xcc81c0b5);
@@ -237,8 +240,8 @@ public final class TabEditorScreen extends UiScreen {
             String title = font.plainSubstrByWidth(entryTitle(pressed.entry()), Math.max(16, width / 2 - 14));
             int boxWidth = font.width(title) + 12;
             int x = Math.clamp(mouseX + 8, 0, Math.max(0, width - boxWidth));
-            int y = Math.clamp(mouseY + 8, TOOLBAR, Math.max(TOOLBAR, TabEditorScreen.this.height - 15));
-            UiRender.roundedRect(graphics, x, y, boxWidth, 15, 4, 0xff293d42);
+            int y = Math.clamp(mouseY + 8, 0, Math.max(0, TabEditorScreen.this.height - 15));
+            UiRender.roundedRect(graphics, x, y, boxWidth, 15, 3, SURFACE);
             graphics.drawString(font, title, x + 6, y + 4, TEXT, false);
         }
 

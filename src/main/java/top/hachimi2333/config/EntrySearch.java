@@ -1,11 +1,9 @@
 package top.hachimi2333.config;
 
-import com.nstut.openui.api.ButtonWidget;
 import com.nstut.openui.api.Ui;
 import com.nstut.openui.api.UIComponent;
 import com.nstut.openui.controls.Dialog;
 import com.nstut.openui.controls.ScrollView;
-import com.nstut.openui.layout.Alignment;
 import com.nstut.openui.overlay.OverlayHandle;
 import com.nstut.openui.runtime.UiRuntime;
 import com.nstut.openui.state.Signals;
@@ -21,13 +19,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
-import static top.hachimi2333.config.F3atherScreen.ACCENT;
-import static top.hachimi2333.config.F3atherScreen.MUTED;
 import static top.hachimi2333.config.F3atherScreen.label;
+import static top.hachimi2333.config.SettingsUi.*;
 
 final class EntrySearch {
     private final List<Choice> choices = new ArrayList<>();
-    private final List<ButtonWidget> buttons = new ArrayList<>();
+    private final List<Button> buttons = new ArrayList<>();
     private final UIComponent entries = Ui.column().gap(2).fillWidth();
     private final ScrollView scroll = Ui.scroll(entries);
     private final Consumer<String> add;
@@ -49,10 +46,10 @@ final class EntrySearch {
         }
 
         var query = Signals.of("");
-        var field = Ui.textField(query, font).maxLength(80).placeholder(label("search").getString());
-        var content = Ui.column(field.fillWidth().height(23),
+        var field = new TextInput(query, font, label("search"), 80);
+        var content = Ui.column(field.fillWidth(),
                 scroll.fillWidth().height(Math.clamp(height - 76, 24, 140))).gap(6).fillWidth();
-        var card = Ui.card(content).padding(10).elevated(true).outlined(true).width(Math.min(342, width - 14));
+        var card = panel(content, 10).width(Math.min(342, width - 14));
         filter("");
         query.subscribe(this::filter);
         overlay = Dialog.show(runtime.overlays(), card);
@@ -84,12 +81,9 @@ final class EntrySearch {
         entries.clearChildren();
         buttons.clear();
         for (Choice choice : results) {
-            var title = Ui.text(choice.title()).ellipsis().flex();
-            var row = Ui.row(title).gap(6).align(Alignment.CENTER).fillWidth();
-            if (!choice.owner().isBlank()) row.addChild(Ui.text(choice.owner()).color(MUTED).ellipsis().maxWidth(95));
-            var button = Ui.button(choice.title(), () -> choose(choice)).small().alignLeft().content(row);
+            var button = searchResult(choice.title(), choice.owner(), () -> choose(choice));
             buttons.add(button);
-            entries.addChild(button.fillWidth().height(19));
+            entries.addChild(button.fillWidth());
         }
         if (buttons.isEmpty()) entries.addChild(Ui.text(label("no_results")).color(MUTED).centered().fillWidth());
         highlight();
@@ -98,8 +92,7 @@ final class EntrySearch {
 
     private void highlight() {
         for (int i = 0; i < buttons.size(); i++) {
-            buttons.get(i).variant(i == selected ? ButtonWidget.Variant.SECONDARY : ButtonWidget.Variant.GHOST)
-                    .textColor(i == selected ? ACCENT : F3atherScreen.TEXT);
+            buttons.get(i).selected(i == selected);
         }
     }
 

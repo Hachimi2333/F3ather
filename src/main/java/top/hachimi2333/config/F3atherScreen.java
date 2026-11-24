@@ -2,7 +2,7 @@ package top.hachimi2333.config;
 
 import com.nstut.openui.api.UIComponent;
 import com.nstut.openui.api.Ui;
-import com.nstut.openui.api.UiRender;
+import com.nstut.openui.api.Divider;
 import com.nstut.openui.controls.Dialog;
 import com.nstut.openui.controls.ScrollView;
 import com.nstut.openui.layout.Alignment;
@@ -21,11 +21,11 @@ import top.hachimi2333.overlay.OverlaySettings.Tab;
 
 import java.util.function.Consumer;
 
+import static top.hachimi2333.config.SettingsUi.*;
+
 public final class F3atherScreen extends UiScreen {
-    static final int ACCENT = 0xff9ce2d8;
-    static final int TEXT = 0xffe8eff3;
-    static final int MUTED = 0xffaab7c1;
     private static final ResourceLocation LOGO = ResourceLocation.fromNamespaceAndPath("f3ather", "textures/gui/logo.png");
+    private static final int HEADER = 26;
     private final Screen parent;
     private ScrollView tabs;
     private double scroll;
@@ -41,40 +41,50 @@ public final class F3atherScreen extends UiScreen {
 
     @Override protected int uiLeft() { return (width - uiWidth()) / 2; }
     @Override protected int uiTop() { return (height - uiHeight()) / 2; }
-    @Override protected int uiWidth() { return Math.max(1, Math.min(444, width - 16)); }
-    @Override protected int uiHeight() { return Math.max(1, Math.min(320, height - 16)); }
+    @Override protected int uiWidth() { return Math.max(1, Math.min(500, width - 16)); }
+    @Override protected int uiHeight() { return Math.max(1, Math.min(294, height - 16)); }
+
+    private int padding() { return uiWidth() < 340 ? 7 : 12; }
+    private int gutter() { return uiWidth() < 340 ? 7 : 13; }
+    private int preferencesWidth() { return Math.min(150, (uiWidth() - 2 * padding()) / 3); }
 
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-        graphics.fillGradient(0, 0, width, height, 0xff151d25, 0xff0e131a);
-        UiRender.roundedRect(graphics, uiLeft(), uiTop(), uiWidth(), uiHeight(), 10, 0xff2b3843);
-        UiRender.roundedRect(graphics, uiLeft() + 1, uiTop() + 1, uiWidth() - 2, uiHeight() - 2, 9, 0xff19222b);
-        graphics.blit(LOGO, uiLeft() + 13, uiTop() + 13, 0, 0, 16, 16, 16, 16);
+        int left = uiLeft();
+        int top = uiTop();
+        int pad = padding();
+        int dividerX = left + pad + preferencesWidth() + gutter();
+        graphics.fill(0, 0, width, height, BACKGROUND);
+        graphics.fill(left, top, left + uiWidth(), top + uiHeight(), SURFACE);
+        graphics.renderOutline(left, top, uiWidth(), uiHeight(), DIVIDER);
+        graphics.fill(dividerX, top + pad + HEADER + 8, dividerX + 1, top + uiHeight() - pad, DIVIDER);
     }
 
     @Override
     protected UIComponent buildUI() {
+        uiRuntime().theme(THEME);
         var settings = ClientConfig.current();
         savedRate = settings.refreshHz();
         rate = Signals.of(savedRate == 0 ? 61.0 : (double) savedRate);
-        var title = Ui.row(Ui.spacer().width(21),
+        var title = Ui.row(Ui.icon(LOGO, 0, 0, 16, 16).size(16),
                 Ui.text(Component.literal("F3ather")).style(TextStyle.TITLE.withColor(TEXT)).flex(),
-                Ui.button(label("back"), this::onClose).small().ghost())
-                .align(Alignment.CENTER).fillWidth().height(23);
-        var refresh = Ui.row(Ui.text(label("refresh")).color(TEXT).width(91),
-                Ui.slider(rate, 1, 61).flex(),
+                button(label("back"), this::onClose))
+                .gap(6).align(Alignment.CENTER).fillWidth().height(HEADER);
+        var refresh = Ui.row(Ui.text(label("refresh")).color(TEXT).ellipsis().flex(),
                 Ui.text(() -> sliderHz() == 0 ? label("every_frame") : label("hz", sliderHz()))
-                        .color(ACCENT).centered().width(66))
-                .gap(5).align(Alignment.CENTER).height(24).fillWidth();
-        var compatibility = Ui.row(Ui.text(label("compatibility")).color(TEXT).flex(),
-                toggle(settings.compatibility(), value -> ClientConfig.save(ClientConfig.current().withCompatibility(value))))
-                .gap(5).align(Alignment.CENTER).height(22).fillWidth();
-        var preferences = Ui.card(refresh, compatibility).padding(8).outlined(true).fillWidth();
+                        .color(MUTED))
+                .gap(3).align(Alignment.CENTER).height(17).fillWidth();
+        var preferences = Ui.column(
+                Ui.text(label("general")).style(TextStyle.HEADING.withColor(TEXT)).height(23),
+                refresh, Ui.slider(rate, 1, 61).fillWidth().height(14),
+                preference("compatibility", settings.compatibility(),
+                        value -> ClientConfig.save(ClientConfig.current().withCompatibility(value))))
+                .gap(3).width(preferencesWidth());
 
         var tabsHeading = Ui.row(Ui.text(label("tabs")).style(TextStyle.HEADING.withColor(TEXT)).flex(),
-                Ui.button(label("new_tab"), () -> editName(null)).small().primary())
-                .align(Alignment.CENTER).height(21).fillWidth();
-        var rows = Ui.column().gap(3).fillWidth();
+                button(label("new_tab"), () -> editName(null)).filled())
+                .align(Alignment.CENTER).height(23).fillWidth();
+        var rows = Ui.column().fillWidth();
         for (BuiltIn tab : BuiltIn.values()) {
             rows.addChild(tabRow(Component.translatable("f3ather.tab." + tab.id()),
                     settings.enabled().contains(tab), value -> ClientConfig.save(ClientConfig.current().withBuiltIn(tab, value)), null));
@@ -83,20 +93,27 @@ public final class F3atherScreen extends UiScreen {
             rows.addChild(tabRow(Component.literal(tab.name()), tab.enabled(), value -> changeTab(tab.id(), current -> current.toggle(value)), tab));
         }
         tabs = Ui.scroll(rows).scrollTo(scroll);
-        return Ui.padding(12, Ui.column(title, preferences, tabsHeading, tabs.fillWidth().flex())
-                .gap(7).fillWidth().fillHeight()).fillWidth().fillHeight();
+        var tabColumn = Ui.column(tabsHeading, tabs.fillWidth().flex()).gap(4).flex().fillHeight();
+        var columns = Ui.row(preferences, Ui.spacer().width(1), tabColumn)
+                .gap(gutter()).fillWidth().flex();
+        return Ui.padding(padding(), Ui.column(title, new Divider(DIVIDER).fillWidth(), columns)
+                .gap(4).fillWidth().fillHeight()).fillWidth().fillHeight();
     }
 
     private UIComponent tabRow(Component name, boolean enabled, Consumer<Boolean> onToggle, Tab tab) {
-        var row = Ui.row(Ui.text(name).color(TEXT).ellipsis().flex()).align(Alignment.CENTER).gap(5).fillWidth();
+        var row = Ui.row(Ui.text(name).color(TEXT).ellipsis().flex()).align(Alignment.CENTER).gap(3).fillWidth();
         if (tab != null) {
-            row.addChild(Ui.button(label("edit"), () -> openEditor(tab.id())).small().secondary());
-            row.addChild(Ui.button(label("rename"), () -> editName(tab.id())).small().ghost());
-            row.addChild(Ui.button(Component.literal("×"), () -> delete(tab)).small().ghost()
-                    .width(18).tooltip(label("delete")));
+            row.addChild(icon(label("edit"), Icon.EDIT, () -> openEditor(tab.id())));
+            row.addChild(icon(label("rename"), Icon.RENAME, () -> editName(tab.id())));
+            row.addChild(icon(label("delete"), Icon.DELETE, () -> delete(tab)).destructive());
         }
         row.addChild(toggle(enabled, onToggle));
-        return Ui.card(row.height(17)).padding(4).outlined(true).fillWidth();
+        return Ui.column(row.height(25), new Divider(DIVIDER).fillWidth()).fillWidth();
+    }
+
+    private static UIComponent preference(String key, boolean enabled, Consumer<Boolean> onToggle) {
+        return Ui.row(Ui.text(label(key)).color(TEXT).ellipsis().flex(), toggle(enabled, onToggle))
+                .gap(4).align(Alignment.CENTER).height(24).fillWidth();
     }
 
     private static UIComponent toggle(boolean startingValue, Consumer<Boolean> onChange) {
@@ -110,7 +127,7 @@ public final class F3atherScreen extends UiScreen {
         if (id != null && existing == null) return;
         var title = label(existing == null ? "new_tab" : "rename");
         var name = Signals.of(existing == null ? "" : existing.name());
-        var input = Ui.textField(name, font).placeholder(label("tab_name").getString()).maxLength(40);
+        var input = new TextInput(name, font, label("tab_name"), 40);
         submitName = () -> {
             String cleaned = name.get().strip();
             if (cleaned.isEmpty() || nameDialog == null || !nameDialog.isOpen()) return;
@@ -124,29 +141,29 @@ public final class F3atherScreen extends UiScreen {
                 refresh();
             }
         };
-        var save = Ui.button(label(existing == null ? "create" : "save"), () -> submitName.run())
-                .small().primary().enabled(!name.get().isBlank());
+        var save = button(label(existing == null ? "create" : "save"), () -> submitName.run())
+                .filled().enabled(!name.get().isBlank());
         name.subscribe(value -> save.enabled(!value.isBlank()));
-        var actions = Ui.row(Ui.spacer().flex(), Ui.button(label("cancel"), () -> nameDialog.close()).small().ghost(), save)
+        var actions = Ui.row(Ui.spacer().flex(), button(label("cancel"), () -> nameDialog.close()), save)
                 .gap(5).align(Alignment.CENTER).fillWidth();
-        nameDialog = Dialog.show(uiRuntime().overlays(), Ui.card(Ui.column(Ui.heading(title),
-                        input.fillWidth(), actions).gap(8).fillWidth())
-                .padding(12).elevated(true).outlined(true).width(Math.min(246, width - 12)));
+        nameDialog = Dialog.show(uiRuntime().overlays(), panel(Ui.column(Ui.heading(title),
+                        input.fillWidth(), actions).gap(8).fillWidth(), 12)
+                .width(Math.min(246, width - 12)));
         uiRuntime().scheduleFrame(input, input::requestFocus);
     }
 
     private void delete(Tab tab) {
         final OverlayHandle[] dialog = new OverlayHandle[1];
         var actions = Ui.row(Ui.spacer().flex(),
-                Ui.button(label("cancel"), () -> dialog[0].close()).small().ghost(),
-                Ui.button(label("delete"), () -> {
+                button(label("cancel"), () -> dialog[0].close()),
+                button(label("delete"), () -> {
                     dialog[0].close();
                     ClientConfig.save(ClientConfig.current().withoutTab(tab.id()));
                     refresh();
-                }).small().danger()).gap(5).fillWidth();
+                }).filled().destructive()).gap(5).fillWidth();
         dialog[0] = Dialog.show(uiRuntime().overlays(),
-                Ui.card(Ui.column(Ui.heading(Component.literal(tab.name())).ellipsis(), actions).gap(8))
-                        .padding(12).elevated(true).outlined(true).width(Math.min(236, width - 12)));
+                panel(Ui.column(Ui.heading(Component.literal(tab.name())).ellipsis(), actions).gap(8), 12)
+                        .width(Math.min(236, width - 12)));
     }
 
     private void changeTab(String id, java.util.function.UnaryOperator<Tab> change) {
