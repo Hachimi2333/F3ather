@@ -1,9 +1,9 @@
-# F3ather 开发指南
+# F3ather Development Guide
 
-- 目标平台为 Minecraft 1.21.1、NeoForge 21.1.172 至 21.1.x 和 Java 21。默认使用 21.1.267 构建。
-- 使用机器上已安装的 JDK 21。将本项目额外下载的构建工具和临时文件放在仓库内已被 Git 忽略的 `.gradle/` 或 `build/` 中。
-- 从 NeoForge 配置入口修改客户端显示设置。界面文案在 `en_us` 和 `zh_cn` 同步维护。
-- 保留原版 F3 图表、精简调试信息和 NeoForge 的逐帧 DebugText 事件。每帧传给事件的文本列表都可以由监听器修改。避免在渲染热路径读写磁盘或积累无上限的条目。
-- 使用 Gradle Wrapper 验证，Windows 运行 `./gradlew.bat build`，其他系统运行 `./gradlew build`。变更 F3 挂点时，分别以默认及 `-PneoVersion=21.1.172` 启动客户端验证。
-- 境内构建默认使用 Gradle 和 Maven 镜像。NeoForge 构件保留官方来源。更新 Wrapper 时一并更新官方分发包校验值。
-- 按功能拆分提交，使用 Conventional Commits 标题与非空正文。正文说明动机、改动和实际验证情况。
+- Target Minecraft 1.21.1, NeoForge 21.1.172 through 21.1.x, and Java 21. The default build uses NeoForge 21.1.267.
+- Use the locally installed JDK 21. Keep additional build tools and temporary files in the repository's Git-ignored `.gradle/` or `build/` directories.
+- Expose client display settings through the NeoForge configuration entry point. Update `en_us` and `zh_cn` translations together.
+- Preserve vanilla F3 charts, reduced debug information, and NeoForge's per-frame `DebugText` event. Give listeners mutable text lists for each frame. Avoid disk I/O and unbounded collections on the rendering hot path.
+- Verify changes with the Gradle Wrapper. Run `.\gradlew.bat build` on Windows or `./gradlew build` elsewhere. When changing F3 hooks, verify the client with both the default NeoForge version and `-PneoVersion=21.1.172`.
+- Builds use Gradle and Maven mirrors by default for mainland China. Resolve NeoForge artifacts from the official repository. Update the official distribution checksum whenever you update the Gradle Wrapper.
+- Group changes into focused Conventional Commits with non-empty bodies. Describe the motivation, the changes, and the verification actually performed.
