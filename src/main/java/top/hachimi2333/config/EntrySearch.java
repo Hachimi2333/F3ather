@@ -25,6 +25,7 @@ final class EntrySearch {
     private static final int HEADER_HEIGHT = 28;
 
     private final Font font;
+    private final Scrollbar scrollbar = new Scrollbar();
     private final List<Choice> choices = new ArrayList<>();
     private final Consumer<String> onAdd;
     private final Runnable onClose;
@@ -127,8 +128,8 @@ final class EntrySearch {
         graphics.disableScissor();
 
         if (maxScroll > 0) {
-            drawScrollbar(graphics, box.x() + box.width() - 6, listTop + 4, listHeight - 8,
-                    results.size() * ROW_HEIGHT, scroll);
+            scrollbar.render(graphics, box.x() + box.width() - 6, listTop + 4, listHeight - 8,
+                    results.size() * ROW_HEIGHT + 8, scroll, mouseX, mouseY);
         }
     }
 
@@ -148,6 +149,14 @@ final class EntrySearch {
         }
         int listTop = box.listTop();
         int listHeight = box.listHeight();
+        if (maxScroll > 0) {
+            int nextScroll = scrollbar.mouseClicked(mouseX, mouseY, box.x() + box.width() - 6,
+                    listTop + 4, listHeight - 8, results.size() * ROW_HEIGHT + 8, scroll);
+            if (nextScroll >= 0) {
+                scroll = nextScroll;
+                return true;
+            }
+        }
         int rowLeft = box.x() + 6;
         int rowWidth = box.width() - 12 - (maxScroll > 0 ? 6 : 0);
         if (hit(mouseX, mouseY, rowLeft, listTop, rowWidth, listHeight)) {
@@ -158,6 +167,22 @@ final class EntrySearch {
             }
         }
         return true;
+    }
+
+    boolean mouseDragged(double mouseX, double mouseY, int button) {
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT || !scrollbar.isDragging()) return false;
+        Box box = box();
+        int nextScroll = scrollbar.mouseDragged(mouseY, box.listTop() + 4, box.listHeight() - 8,
+                results.size() * ROW_HEIGHT + 8, scroll);
+        if (nextScroll >= 0) {
+            scroll = nextScroll;
+            return true;
+        }
+        return false;
+    }
+
+    boolean mouseReleased() {
+        return scrollbar.mouseReleased();
     }
 
     boolean mouseScrolled(double mouseX, double mouseY, double scrollY) {

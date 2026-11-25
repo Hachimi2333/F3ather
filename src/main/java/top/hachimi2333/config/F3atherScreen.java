@@ -22,6 +22,7 @@ public final class F3atherScreen extends Screen {
     private static final int CLOSE_SIZE = 20;
 
     private final Screen parent;
+    private final Scrollbar scrollbar = new Scrollbar();
     private Page activePage = Page.GENERAL;
     private double scroll;
     private int maxScroll;
@@ -71,8 +72,8 @@ public final class F3atherScreen extends Screen {
         int pTop = panelTop();
         int pWidth = panelWidth();
         int pHeight = panelHeight();
-        int uiMouseX = modal == null ? mouseX : -1;
-        int uiMouseY = modal == null ? mouseY : -1;
+        int uiMouseX = modal == null && !scrollbar.isDragging() ? mouseX : -1;
+        int uiMouseY = modal == null && !scrollbar.isDragging() ? mouseY : -1;
 
         drawFloatingPanel(graphics, pLeft, pTop, pWidth, pHeight, GLASS_BG, GLASS_BORDER);
         renderHeader(graphics, uiMouseX, uiMouseY, pLeft, pTop, pWidth);
@@ -101,7 +102,8 @@ public final class F3atherScreen extends Screen {
         graphics.disableScissor();
 
         if (maxScroll > 0) {
-            drawScrollbar(graphics, bLeft + bWidth - 2, bTop, bHeight, contentHeight, (int) Math.round(scroll));
+            scrollbar.render(graphics, bLeft + bWidth - 2, bTop, bHeight, contentHeight, (int) Math.round(scroll),
+                    modal == null ? mouseX : -1, modal == null ? mouseY : -1);
         }
 
         if (modal != null) {
@@ -358,6 +360,7 @@ public final class F3atherScreen extends Screen {
                 playClick();
                 activePage = Page.GENERAL;
                 scroll = 0;
+                scrollbar.reset();
             }
             return true;
         }
@@ -366,6 +369,7 @@ public final class F3atherScreen extends Screen {
                 playClick();
                 activePage = Page.TABS;
                 scroll = 0;
+                scrollbar.reset();
             }
             return true;
         }
@@ -376,6 +380,15 @@ public final class F3atherScreen extends Screen {
         int bHeight = Math.max(1, bodyBottom() - bTop);
         if (hit(mouseX, mouseY, bLeft, bTop, bWidth, bHeight)) {
             List<RowItem> items = buildItems();
+            int contentHeight = totalHeight(items);
+            if (maxScroll > 0) {
+                int nextScroll = scrollbar.mouseClicked(mouseX, mouseY, bLeft + bWidth - 2, bTop, bHeight,
+                        contentHeight, scroll);
+                if (nextScroll >= 0) {
+                    scroll = nextScroll;
+                    return true;
+                }
+            }
             int rowWidth = maxScroll > 0 ? bWidth - 7 : bWidth;
             int y = bTop - (int) Math.round(scroll);
             for (RowItem item : items) {
@@ -387,6 +400,26 @@ public final class F3atherScreen extends Screen {
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+        if (modal == null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT && scrollbar.isDragging()) {
+            int bTop = bodyTop();
+            int bHeight = Math.max(1, bodyBottom() - bTop);
+            int nextScroll = scrollbar.mouseDragged(mouseY, bTop, bHeight, totalHeight(buildItems()), scroll);
+            if (nextScroll >= 0) {
+                scroll = nextScroll;
+                return true;
+            }
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (scrollbar.mouseReleased()) return true;
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     private boolean handleModalClick(double mouseX, double mouseY, int button) {
@@ -553,7 +586,7 @@ public final class F3atherScreen extends Screen {
             int textMax = Math.max(20, barX - (x + 8) - 8);
 
             String title = ellipsize(font, label("refresh").getString(), textMax);
-            String desc = ellipsize(font, rateLabel(currentHz).getString() + " · " + label("refresh.desc").getString(), textMax);
+            String desc = ellipsize(font, label("refresh.desc").getString(), textMax);
             graphics.drawString(font, title, x + 8, y + 8, TEXT_PRIMARY, false);
             graphics.drawString(font, desc, x + 8, y + 21, TEXT_MUTED, false);
 

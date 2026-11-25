@@ -326,14 +326,16 @@ public final class TabEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
-        if (search != null || pressed == null) return super.mouseDragged(x, y, button, dx, dy);
+        if (search != null) return search.mouseDragged(x, y, button);
+        if (pressed == null) return super.mouseDragged(x, y, button, dx, dy);
         dragging |= Math.abs(x - pressX) + Math.abs(y - pressY) >= 3;
         return true;
     }
 
     @Override
     public boolean mouseReleased(double x, double y, int button) {
-        if (search != null || pressed == null) return super.mouseReleased(x, y, button);
+        if (search != null) return search.mouseReleased();
+        if (pressed == null) return super.mouseReleased(x, y, button);
         Placement source = pressed;
         Tab tab = currentTab();
         if (tab != null && dragging) {

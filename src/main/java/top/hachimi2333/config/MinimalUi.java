@@ -52,7 +52,7 @@ final class MinimalUi {
     }
 
     enum Icon {
-        EDIT, RENAME, DELETE, SEARCH, CHEVRON_LEFT, CHEVRON_RIGHT, CLOSE
+        EDIT, RENAME, DELETE, SEARCH, CHEVRON_LEFT, CHEVRON_RIGHT, CHEVRON_DOWN, CLOSE, HELP
     }
 
     static void drawGlassPanel(GuiGraphics graphics, int x, int y, int width, int height, int fill, int border) {
@@ -124,11 +124,21 @@ final class MinimalUi {
     static void drawIcon(GuiGraphics graphics, Icon icon, int x, int y, int color) {
         switch (icon) {
             case EDIT -> {
-                for (int step = 0; step < 6; step++) {
-                    graphics.fill(x + 1 + step, y + 6 - step, x + 3 + step, y + 8 - step, color);
-                }
-                graphics.fill(x + 7, y, x + 9, y + 2, color);
-                graphics.fill(x, y + 8, x + 2, y + 9, color);
+                graphics.fill(x + 6, y, x + 8, y + 1, color);
+                graphics.fill(x + 5, y + 1, x + 7, y + 2, color);
+                graphics.fill(x + 8, y + 1, x + 9, y + 3, color);
+                graphics.fill(x + 4, y + 2, x + 5, y + 3, color);
+                graphics.fill(x + 7, y + 2, x + 8, y + 3, color);
+                graphics.fill(x + 3, y + 3, x + 4, y + 4, color);
+                graphics.fill(x + 7, y + 3, x + 8, y + 4, color);
+                graphics.fill(x + 2, y + 4, x + 3, y + 5, color);
+                graphics.fill(x + 6, y + 4, x + 7, y + 5, color);
+                graphics.fill(x + 1, y + 5, x + 2, y + 7, color);
+                graphics.fill(x + 5, y + 5, x + 6, y + 6, color);
+                graphics.fill(x + 4, y + 6, x + 5, y + 7, color);
+                graphics.fill(x, y + 7, x + 1, y + 8, color);
+                graphics.fill(x + 3, y + 7, x + 4, y + 8, color);
+                graphics.fill(x, y + 8, x + 3, y + 9, color);
             }
             case RENAME -> {
                 graphics.fill(x + 2, y, x + 7, y + 1, color);
@@ -161,6 +171,20 @@ final class MinimalUi {
                     graphics.fill(x + 6 - step, y + 4 + step, x + 7 - step, y + 5 + step, color);
                 }
             }
+            case CHEVRON_DOWN -> {
+                for (int step = 0; step < 4; step++) {
+                    graphics.fill(x + 1 + step, y + 3 + step, x + 2 + step, y + 4 + step, color);
+                    graphics.fill(x + 7 - step, y + 3 + step, x + 8 - step, y + 4 + step, color);
+                }
+            }
+            case HELP -> {
+                graphics.fill(x + 2, y + 1, x + 7, y + 2, color);
+                graphics.fill(x + 1, y + 2, x + 2, y + 4, color);
+                graphics.fill(x + 6, y + 2, x + 7, y + 4, color);
+                graphics.fill(x + 4, y + 4, x + 6, y + 5, color);
+                graphics.fill(x + 4, y + 5, x + 5, y + 6, color);
+                graphics.fill(x + 4, y + 7, x + 5, y + 8, color);
+            }
         }
     }
 
@@ -181,14 +205,80 @@ final class MinimalUi {
         return box;
     }
 
-    static void drawScrollbar(GuiGraphics graphics, int trackX, int trackY, int trackHeight,
-                              int contentHeight, int scrollOffset) {
-        if (contentHeight <= trackHeight || trackHeight <= 4) return;
-        int thumbHeight = Math.max(18, (int) ((long) trackHeight * trackHeight / contentHeight));
-        int maxScroll = contentHeight - trackHeight;
-        int thumbY = trackY + (int) ((long) (trackHeight - thumbHeight) * scrollOffset / Math.max(1, maxScroll));
-        graphics.fill(trackX, trackY, trackX + 2, trackY + trackHeight, HAIRLINE);
-        graphics.fill(trackX, thumbY, trackX + 2, thumbY + thumbHeight, 0x609ce2d8);
+    /** Tracks thumb drag and track clicks for thin vertical scrollbars. */
+    static final class Scrollbar {
+        private boolean dragging;
+        private double grabOffset;
+
+        boolean isDragging() { return dragging; }
+
+        void reset() { dragging = false; }
+
+        void render(GuiGraphics graphics, int trackX, int trackY, int trackHeight,
+                    int contentHeight, int scrollOffset, int mouseX, int mouseY) {
+            Thumb thumb = thumb(trackY, trackHeight, contentHeight, scrollOffset);
+            if (thumb == null) {
+                dragging = false;
+                return;
+            }
+            boolean hovered = hitTrack(mouseX, mouseY, trackX, trackY, trackHeight);
+            boolean active = dragging || hovered;
+            int trackColor = active ? 0x2cffffff : HAIRLINE;
+            int thumbColor = dragging ? ACCENT : hovered ? 0xb89ce2d8 : 0x609ce2d8;
+            int x0 = active ? trackX - 1 : trackX;
+            graphics.fill(trackX, trackY, trackX + 2, trackY + trackHeight, trackColor);
+            graphics.fill(x0, thumb.y(), trackX + 2, thumb.y() + thumb.height(), thumbColor);
+        }
+
+        int mouseClicked(double mouseX, double mouseY, int trackX, int trackY, int trackHeight,
+                         int contentHeight, double currentScroll) {
+            Thumb thumb = thumb(trackY, trackHeight, contentHeight, (int) Math.round(currentScroll));
+            if (thumb == null || !hitTrack(mouseX, mouseY, trackX, trackY, trackHeight)) return -1;
+            dragging = true;
+            if (mouseY >= thumb.y() && mouseY < thumb.y() + thumb.height()) {
+                grabOffset = mouseY - thumb.y();
+                return (int) Math.round(currentScroll);
+            }
+            grabOffset = thumb.height() / 2.0;
+            return scrollForMouse(mouseY, trackY, trackHeight, thumb);
+        }
+
+        int mouseDragged(double mouseY, int trackY, int trackHeight, int contentHeight, double currentScroll) {
+            if (!dragging) return -1;
+            Thumb thumb = thumb(trackY, trackHeight, contentHeight, (int) Math.round(currentScroll));
+            if (thumb == null) {
+                dragging = false;
+                return 0;
+            }
+            return scrollForMouse(mouseY, trackY, trackHeight, thumb);
+        }
+
+        boolean mouseReleased() {
+            if (!dragging) return false;
+            dragging = false;
+            return true;
+        }
+
+        private int scrollForMouse(double mouseY, int trackY, int trackHeight, Thumb thumb) {
+            int travel = Math.max(1, trackHeight - thumb.height());
+            double clampedTop = Math.clamp(mouseY - grabOffset - trackY, 0.0, travel);
+            return (int) Math.round(clampedTop * thumb.maxScroll() / travel);
+        }
+
+        private static boolean hitTrack(double mouseX, double mouseY, int trackX, int trackY, int trackHeight) {
+            return mouseX >= trackX - 5 && mouseX < trackX + 6 && mouseY >= trackY && mouseY < trackY + trackHeight;
+        }
+
+        private static Thumb thumb(int trackY, int trackHeight, int contentHeight, int scrollOffset) {
+            if (contentHeight <= trackHeight || trackHeight <= 4) return null;
+            int maxScroll = contentHeight - trackHeight;
+            int minThumb = Math.min(18, trackHeight);
+            int thumbHeight = Math.clamp((int) ((long) trackHeight * trackHeight / contentHeight), minThumb, trackHeight);
+            int thumbY = trackY + (int) ((long) (trackHeight - thumbHeight) * Math.clamp(scrollOffset, 0, maxScroll) / Math.max(1, maxScroll));
+            return new Thumb(thumbY, thumbHeight, maxScroll);
+        }
+
+        private record Thumb(int y, int height, int maxScroll) {}
     }
 
     static int baseline(Font font, int y, int height) {
