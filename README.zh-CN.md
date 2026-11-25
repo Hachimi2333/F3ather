@@ -27,8 +27,6 @@ F3ather 是客户端模组，适用于 **Minecraft 1.21.1**、**NeoForge 21.1.17
 1. 从 [Releases](https://github.com/Hachimi2333/F3ather/releases) 下载 JAR。
 2. 将 JAR 放入 Minecraft 实例的 `mods` 文件夹，然后启动 NeoForge。
 
-设置界面使用的 OpenUI MC 已随 JAR 打包。
-
 ## 操作
 
 | 快捷键 | 功能 |
@@ -53,7 +51,7 @@ F3ather 是客户端模组，适用于 **Minecraft 1.21.1**、**NeoForge 21.1.17
 
 Windows 下用 `.\gradlew.bat` 替换 `./gradlew`。成品 JAR 位于 `build/libs/`。添加 `-PneoVersion=21.1.172` 可用最低支持版本构建或运行客户端。
 
-构建会校验随包分发的 OpenUI MC 0.0.16。Gradle 和 Maven Central 默认使用镜像，加上 `-PuseChinaMirrors=false` 可关闭。NeoForge 构件从官方仓库获取。
+Gradle 和 Maven Central 默认使用镜像，加上 `-PuseChinaMirrors=false` 可关闭。NeoForge 构件从官方仓库获取。
 
 ### 测试
 
@@ -82,4 +80,4 @@ Windows 下用 `.\gradlew.bat` 替换 `./gradlew`。成品 JAR 位于 `build/lib
 
 ## 许可证
 
-F3ather 采用 [MIT 许可证](LICENSE)。随包分发的 OpenUI MC 许可证见[第三方声明](src/main/resources/META-INF/LICENSE-OpenUI-MC.txt)。
+F3ather 采用 [MIT 许可证](LICENSE)。

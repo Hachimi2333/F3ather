@@ -27,8 +27,6 @@ F3ather runs on the client with **Minecraft 1.21.1**, **NeoForge 21.1.172 or lat
 1. Download the JAR from [Releases](https://github.com/Hachimi2333/F3ather/releases).
 2. Place it in your Minecraft instance's `mods` folder and launch the NeoForge profile.
 
-OpenUI MC is bundled in the JAR as a dependency for the settings screen.
-
 ## Controls
 
 | Shortcut | Action |
@@ -53,7 +51,7 @@ Set `JAVA_HOME` to a local JDK 21 and use the Gradle Wrapper. The default build 
 
 On Windows, use `.\gradlew.bat` in place of `./gradlew`. The build writes the JAR to `build/libs/`. Add `-PneoVersion=21.1.172` to build or run against the minimum supported NeoForge version.
 
-The build verifies the bundled OpenUI MC 0.0.16 checksum. Gradle and Maven Central mirrors are enabled by default. Use `-PuseChinaMirrors=false` to turn them off. NeoForge artifacts come from the official repository.
+Gradle and Maven Central mirrors are enabled by default. Use `-PuseChinaMirrors=false` to turn them off. NeoForge artifacts come from the official repository.
 
 ### Testing
 
@@ -82,4 +80,4 @@ See [AGENTS.md](AGENTS.md) for repository conventions. When reporting a bug, inc
 
 ## License
 
-F3ather is licensed under the [MIT License](LICENSE). The bundled OpenUI MC license is included in the [third-party notices](src/main/resources/META-INF/LICENSE-OpenUI-MC.txt).
+F3ather is licensed under the [MIT License](LICENSE).

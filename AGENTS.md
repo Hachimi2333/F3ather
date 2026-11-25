@@ -26,5 +26,5 @@
 
 ## Installation
 
-Requires **Minecraft <minecraftVersion>, NeoForge <minimumNeoVersion> or later in the <neoSeries> series, and Java <javaVersion>**. Place `f3ather-neoforge-<minecraftVersion>-<version>.jar` in your client's `mods` folder. OpenUI MC is bundled.
+Requires **Minecraft <minecraftVersion>, NeoForge <minimumNeoVersion> or later in the <neoSeries> series, and Java <javaVersion>**. Place `f3ather-neoforge-<minecraftVersion>-<version>.jar` in your client's `mods` folder.
 ```
