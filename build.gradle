@@ -9,7 +9,7 @@ group = 'top.hachimi2333'
 version = modVersion
 
 base {
-    archivesName = 'f3ather'
+    archivesName = "f3ather-neoforge-${minecraftVersion}"
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
