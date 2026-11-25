@@ -3,6 +3,7 @@ package top.hachimi2333.config;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 import org.lwjgl.glfw.GLFW;
 import top.hachimi2333.F3ather;
 import top.hachimi2333.overlay.HudLayout;
@@ -32,6 +33,7 @@ public final class TabEditorScreen extends Screen {
     private double pressY;
     private int page;
     private int pages = 1;
+    private boolean showHelp;
     private EntrySearch search;
     private boolean suppressSlash;
 
@@ -128,7 +130,7 @@ public final class TabEditorScreen extends Screen {
 
         graphics.drawManaged(() -> {
             F3ather.HUD.drawPreview(graphics, settings, tab, position, bottom, rows, page, pages);
-            if (search == null) drawInteractionGuides(graphics, mouseX, mouseY, tab);
+            if (search == null && !showHelp) drawInteractionGuides(graphics, mouseX, mouseY, tab);
         });
     }
 
@@ -198,26 +200,69 @@ public final class TabEditorScreen extends Screen {
                     page < pages - 1 && hit(mouseX, mouseY, pager.nextX(), pager.arrowY(), 13, 15), false, false);
         } else {
             int centerLeft = dock.backX() + dock.btnW() + 6;
-            int centerW = Math.max(0, dock.addX() - 6 - centerLeft);
+            int centerW = Math.max(0, dock.helpX() - 6 - centerLeft);
             String title = ellipsize(font, tab.name(), centerW);
             graphics.drawString(font, title, centerLeft + (centerW - font.width(title)) / 2,
                     baseline(font, dock.y(), dock.height()), TEXT_PRIMARY, false);
         }
 
-        if (!dragging && search == null && dock.y() + dock.height() + 20 < height) {
-            String hint = ellipsize(font, label("editor_hint").getString(), Math.max(60, width - 32));
-            int hintW = font.width(hint) + 14;
-            int hintX = (width - hintW) / 2;
-            int hintY = dock.y() + dock.height() + 6;
-            drawGlassPanel(graphics, hintX, hintY, hintW, 14, 0xb810141a, 0x20ffffff);
-            graphics.drawString(font, hint, hintX + 7, baseline(font, hintY, 14), 0xffc8d4d4, false);
+        boolean helpHover = hit(mouseX, mouseY, dock.helpX(), dock.btnY(), dock.helpSize(), dock.btnH());
+        if (showHelp) {
+            graphics.fill(dock.helpX(), dock.btnY(), dock.helpX() + dock.helpSize(), dock.btnY() + dock.btnH(), ACCENT_SOFT);
+            graphics.renderOutline(dock.helpX(), dock.btnY(), dock.helpSize(), dock.btnH(), ACCENT_BORDER);
+            drawIcon(graphics, Icon.HELP, dock.helpX() + (dock.helpSize() - 9) / 2, dock.btnY() + (dock.btnH() - 9) / 2, ACCENT);
+        } else {
+            drawIconButton(graphics, Icon.HELP, dock.helpX(), dock.btnY(), dock.helpSize(), helpHover, false, false);
         }
+
+        if (showHelp && !dragging && search == null) {
+            renderHelpCard(graphics, dock);
+        } else if (helpHover && !dragging && search == null) {
+            graphics.renderTooltip(font, label("help"), mouseX, mouseY);
+        }
+    }
+
+    private void renderHelpCard(GuiGraphics graphics, Dock dock) {
+        HelpLayout help = helpLayout(dock);
+        drawFloatingPanel(graphics, help.x(), help.y(), help.width(), help.height(), MODAL_BG, MODAL_BORDER);
+        graphics.drawString(font, label("editor_help_title"), help.x() + 12, help.y() + 10, TEXT_PRIMARY, false);
+        graphics.fill(help.x() + 10, help.y() + 23, help.x() + help.width() - 10, help.y() + 24, HAIRLINE);
+
+        int y = help.y() + 29;
+        for (List<FormattedCharSequence> lines : help.paragraphs()) {
+            if (!lines.isEmpty()) {
+                graphics.fill(help.x() + 12, y + 3, help.x() + 14, y + 5, ACCENT);
+            }
+            for (FormattedCharSequence line : lines) {
+                graphics.drawString(font, line, help.x() + 19, y, TEXT_MUTED, false);
+                y += 11;
+            }
+            y += 3;
+        }
+    }
+
+    private HelpLayout helpLayout(Dock dock) {
+        int cardW = Math.min(312, Math.max(180, width - 24));
+        int textMax = Math.max(40, cardW - 31);
+        List<List<FormattedCharSequence>> paragraphs = List.of(
+                font.split(label("editor_help_drag"), textMax),
+                font.split(label("editor_help_remove"), textMax),
+                font.split(label("editor_help_add"), textMax),
+                font.split(label("editor_help_page"), textMax));
+        int lines = paragraphs.stream().mapToInt(List::size).sum();
+        int cardH = 34 + lines * 11 + Math.max(0, paragraphs.size() - 1) * 3;
+        int cardX = (width - cardW) / 2;
+        int belowY = dock.y() + dock.height() + 6;
+        int cardY = belowY + cardH <= height - 6
+                ? belowY
+                : Math.max(6, dock.y() - 6 - cardH);
+        return new HelpLayout(cardX, cardY, cardW, cardH, paragraphs);
     }
 
     private PagerLayout pagerLayout(Dock dock, Tab tab) {
         if (pages <= 1) return null;
         int centerLeft = dock.backX() + dock.btnW() + 6;
-        int centerW = Math.max(0, dock.addX() - 6 - centerLeft);
+        int centerW = Math.max(0, dock.helpX() - 6 - centerLeft);
         if (centerW < 68) return null;
         String pageText = Component.translatable("f3ather.hud.page", page + 1, pages).getString();
         int pagerW = font.width(pageText) + 26;
@@ -231,19 +276,23 @@ public final class TabEditorScreen extends Screen {
     }
 
     private Dock dock() {
-        int dockW = Math.min(256, Math.max(180, width - 24));
+        int dockW = Math.min(284, Math.max(196, width - 24));
         int dockX = (width - dockW) / 2;
         int dockY = (height - DOCK_HEIGHT) / 2;
+        int helpSize = 20;
         int btnW = Math.max(font.width(label("back")), font.width(label("add_entry"))) + 14;
-        btnW = Math.min(btnW, (dockW - 40) / 2);
+        btnW = Math.min(btnW, Math.max(32, (dockW - 44 - helpSize) / 2));
         int btnH = 20;
         int btnY = dockY + (DOCK_HEIGHT - btnH) / 2;
-        return new Dock(dockX, dockY, dockW, DOCK_HEIGHT, dockX + 5, dockX + dockW - 5 - btnW, btnY, btnW, btnH);
+        int addX = dockX + dockW - 5 - btnW;
+        int helpX = addX - 4 - helpSize;
+        return new Dock(dockX, dockY, dockW, DOCK_HEIGHT, dockX + 5, helpX, helpSize, addX, btnY, btnW, btnH);
     }
 
     private void openSearch() {
         Tab tab = currentTab();
         if (tab == null || search != null) return;
+        showHelp = false;
         search = new EntrySearch(font, width, height, tab,
                 entry -> update(current -> current.move(entry, Region.TOP_LEFT, current.entries(Region.TOP_LEFT).size())),
                 () -> {
@@ -298,6 +347,11 @@ public final class TabEditorScreen extends Screen {
             onClose();
             return true;
         }
+        if (hit(x, y, dock.helpX(), dock.btnY(), dock.helpSize(), dock.btnH())) {
+            playClick();
+            showHelp = !showHelp;
+            return true;
+        }
         if (hit(x, y, dock.addX(), dock.btnY(), dock.btnW(), dock.btnH())) {
             playClick();
             openSearch();
@@ -312,6 +366,13 @@ public final class TabEditorScreen extends Screen {
                 } else if (hit(x, y, pager.nextX(), pager.arrowY(), 13, 15)) {
                     turnPage(1);
                 }
+            }
+            return true;
+        }
+        if (showHelp) {
+            HelpLayout help = helpLayout(dock);
+            if (!hit(x, y, help.x(), help.y(), help.width(), help.height())) {
+                showHelp = false;
             }
             return true;
         }
@@ -364,6 +425,10 @@ public final class TabEditorScreen extends Screen {
     @Override
     public boolean keyPressed(int key, int scan, int modifiers) {
         if (search != null) return search.keyPressed(key, scan, modifiers);
+        if (showHelp && key == GLFW.GLFW_KEY_ESCAPE) {
+            showHelp = false;
+            return true;
+        }
         if (key == GLFW.GLFW_KEY_SLASH) {
             suppressSlash = true;
             openSearch();
@@ -423,7 +488,9 @@ public final class TabEditorScreen extends Screen {
         return id;
     }
 
-    private record Dock(int x, int y, int width, int height, int backX, int addX, int btnY, int btnW, int btnH) {}
+    private record Dock(int x, int y, int width, int height, int backX, int helpX, int helpSize, int addX,
+                        int btnY, int btnW, int btnH) {}
+    private record HelpLayout(int x, int y, int width, int height, List<List<FormattedCharSequence>> paragraphs) {}
     private record PagerLayout(String title, int titleX, String pageText, int prevX, int nextX, int arrowY) {}
     private record Group(String entry, int start, int end) {}
     private record Placement(String entry, Region region, int index, int left, int right, int top, int bottom) {}
