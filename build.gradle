@@ -106,6 +106,8 @@ neoForge {
         }
         fixtureClient {
             client()
+            sourceSet = sourceSets.fixture
+            systemProperty 'f3ather.fixture.baseline', providers.gradleProperty('fixtureBaseline').isPresent().toString()
             gameDirectory = layout.buildDirectory.dir(fixtureDirectory).get().asFile
             loadedMods = [mods.f3ather_fixture, mods.f3ather_fixture_peer]
             if (providers.gradleProperty('fixtureAuto').isPresent()) {

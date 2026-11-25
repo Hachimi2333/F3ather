@@ -53,6 +53,9 @@ public final class FixtureClient {
     private static int closedCounter;
 
     public FixtureClient() {
+        if (ModList.get().isLoaded("f3ather") == Boolean.getBoolean("f3ather.fixture.baseline")) {
+            throw new IllegalStateException("Fixture mod list does not match the requested baseline");
+        }
         NeoForge.EVENT_BUS.addListener(FixtureClient::addDebugText);
         NeoForge.EVENT_BUS.addListener(FixtureClient::tick);
     }
