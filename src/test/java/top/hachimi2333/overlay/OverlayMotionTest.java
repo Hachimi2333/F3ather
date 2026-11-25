@@ -118,19 +118,22 @@ final class OverlayMotionTest {
     }
 
     @Test
-    void hiddenTabBarReclaimsSpaceWithoutChangingColumnMotionOrTabSelection() {
+    void lockedTabHidesTabBarAndDisablesCyclingWithoutChangingMotion() {
         var entering = new OverlayMotion().position(0, false, WIDTH);
-        var hidden = entering.withHiddenTabBar(true);
+        var hidden = entering.withHeaderHidden(true);
         assertEquals(WIDTH, hidden.columnDistance());
         assertEquals(0, hidden.headerHeight());
         assertEquals(0, hidden.layoutHeader());
 
-        var settings = OverlaySettings.DEFAULT.withHideTabBar(true).withDisableAnimations(true);
+        var settings = OverlaySettings.DEFAULT.withLockedTab("performance").withDisableAnimations(true);
         var hud = new OverlayHud(new AddonEntries());
-        hud.cycle(settings);
+        hud.accept(hud.column(true, java.util.List.of()), hud.column(false, java.util.List.of()), settings, false);
+        assertEquals("performance", hud.activeTab());
         hud.cycle(settings);
         assertEquals("performance", hud.activeTab());
         assertEquals(HudLayout.Position.preview(true), hud.position(settings, WIDTH));
-        assertEquals(HudLayout.Position.EXPANDED, hud.position(settings.withHideTabBar(false), WIDTH));
+        assertEquals(HudLayout.Position.EXPANDED, hud.position(settings.withLockedTab(""), WIDTH));
+        hud.cycle(settings.withLockedTab(""));
+        assertEquals("world", hud.activeTab());
     }
 }

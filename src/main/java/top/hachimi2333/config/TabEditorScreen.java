@@ -92,7 +92,8 @@ public final class TabEditorScreen extends Screen {
         }
 
         var settings = ClientConfig.current();
-        var position = HudLayout.Position.preview(settings.hideTabBar());
+        String locked = settings.effectiveLockedTab(F3ather.HUD.modsDetected());
+        var position = HudLayout.Position.preview(tab.id().equals(locked));
         int top = position.layoutHeader();
         var bottom = F3ather.HUD.bottoms(height, top);
         pages = HudLayout.pageCount(width, top, bottom.left(), bottom.right(), rows, true);

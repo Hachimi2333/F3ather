@@ -57,7 +57,7 @@ abstract class KeyboardHandlerMixin {
         if (f3ather$f3Down && key == GLFW.GLFW_KEY_0) {
             minecraft.setScreen(new F3atherScreen(null));
         } else if (!settings.compatibility() && minecraft.getDebugOverlay().showDebugScreen()) {
-            if (key == GLFW.GLFW_KEY_TAB) {
+            if (key == GLFW.GLFW_KEY_TAB && !F3ather.HUD.isTabLocked(settings)) {
                 F3ather.HUD.cycle(settings);
             } else if (f3ather$f3Down && F3ather.HUD.supportsPages()
                     && (key == GLFW.GLFW_KEY_PAGE_UP || key == GLFW.GLFW_KEY_PAGE_DOWN)) {

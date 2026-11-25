@@ -5,6 +5,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
+import top.hachimi2333.overlay.OverlayHud;
 import top.hachimi2333.overlay.OverlaySettings;
 import top.hachimi2333.overlay.OverlaySettings.BuiltIn;
 import top.hachimi2333.overlay.OverlaySettings.Tab;
@@ -23,9 +24,13 @@ public final class F3atherScreen extends Screen {
 
     private final Screen parent;
     private final Scrollbar scrollbar = new Scrollbar();
+    private final Scrollbar dropdownScrollbar = new Scrollbar();
     private Page activePage = Page.GENERAL;
     private double scroll;
     private int maxScroll;
+    private boolean lockDropdownOpen;
+    private double lockDropdownScroll;
+    private int lockDropdownMaxScroll;
     private Modal modal;
     private EditBox nameBox;
     private Component tooltip;
@@ -72,11 +77,13 @@ public final class F3atherScreen extends Screen {
         int pTop = panelTop();
         int pWidth = panelWidth();
         int pHeight = panelHeight();
-        int uiMouseX = modal == null && !scrollbar.isDragging() ? mouseX : -1;
-        int uiMouseY = modal == null && !scrollbar.isDragging() ? mouseY : -1;
+        boolean blockMainMouse = modal != null || lockDropdownOpen || scrollbar.isDragging();
+        int uiMouseX = !blockMainMouse ? mouseX : -1;
+        int uiMouseY = !blockMainMouse ? mouseY : -1;
 
         drawFloatingPanel(graphics, pLeft, pTop, pWidth, pHeight, GLASS_BG, GLASS_BORDER);
-        renderHeader(graphics, uiMouseX, uiMouseY, pLeft, pTop, pWidth);
+        renderHeader(graphics, modal == null && !lockDropdownOpen ? mouseX : -1,
+                modal == null && !lockDropdownOpen ? mouseY : -1, pLeft, pTop, pWidth);
         graphics.fill(pLeft + pad(), pTop + HEADER_HEIGHT, pLeft + pWidth - pad(), pTop + HEADER_HEIGHT + 1, HAIRLINE);
 
         int bLeft = bodyLeft();
@@ -103,7 +110,12 @@ public final class F3atherScreen extends Screen {
 
         if (maxScroll > 0) {
             scrollbar.render(graphics, bLeft + bWidth - 2, bTop, bHeight, contentHeight, (int) Math.round(scroll),
-                    modal == null ? mouseX : -1, modal == null ? mouseY : -1);
+                    modal == null && !lockDropdownOpen ? mouseX : -1,
+                    modal == null && !lockDropdownOpen ? mouseY : -1);
+        }
+
+        if (lockDropdownOpen && modal == null) {
+            renderLockDropdown(graphics, mouseX, mouseY);
         }
 
         if (modal != null) {
@@ -171,11 +183,7 @@ public final class F3atherScreen extends Screen {
         var items = new ArrayList<RowItem>();
         if (activePage == Page.GENERAL) {
             items.add(new RefreshItem(settings.refreshHz()));
-            items.add(new PreferenceItem(
-                    label("hide_tab_bar").getString(),
-                    label("hide_tab_bar.desc").getString(),
-                    settings.hideTabBar(),
-                    value -> ClientConfig.save(ClientConfig.current().withHideTabBar(value))));
+            items.add(new LockTabItem(settings));
             items.add(new PreferenceItem(
                     label("compatibility").getString(),
                     label("compatibility.desc").getString(),
@@ -345,6 +353,7 @@ public final class F3atherScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT) return super.mouseClicked(mouseX, mouseY, button);
         if (modal != null) return handleModalClick(mouseX, mouseY, button);
+        if (lockDropdownOpen) return handleLockDropdownClick(mouseX, mouseY);
 
         int closeX = closeButtonX(panelLeft(), panelWidth());
         int closeY = closeButtonY(panelTop());
@@ -361,6 +370,7 @@ public final class F3atherScreen extends Screen {
                 activePage = Page.GENERAL;
                 scroll = 0;
                 scrollbar.reset();
+                closeLockDropdown();
             }
             return true;
         }
@@ -370,6 +380,7 @@ public final class F3atherScreen extends Screen {
                 activePage = Page.TABS;
                 scroll = 0;
                 scrollbar.reset();
+                closeLockDropdown();
             }
             return true;
         }
@@ -404,6 +415,18 @@ public final class F3atherScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+        if (modal == null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT && lockDropdownOpen && dropdownScrollbar.isDragging()) {
+            List<LockOption> options = lockOptions();
+            DropdownBox box = lockDropdownBox(options.size());
+            if (box != null) {
+                int nextScroll = dropdownScrollbar.mouseDragged(mouseY, box.y() + 4, box.height() - 8,
+                        options.size() * 19 + 8, lockDropdownScroll);
+                if (nextScroll >= 0) {
+                    lockDropdownScroll = nextScroll;
+                    return true;
+                }
+            }
+        }
         if (modal == null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT && scrollbar.isDragging()) {
             int bTop = bodyTop();
             int bHeight = Math.max(1, bodyBottom() - bTop);
@@ -418,6 +441,7 @@ public final class F3atherScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (dropdownScrollbar.mouseReleased()) return true;
         if (scrollbar.mouseReleased()) return true;
         return super.mouseReleased(mouseX, mouseY, button);
     }
@@ -468,7 +492,17 @@ public final class F3atherScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (modal != null || maxScroll <= 0 || scrollY == 0) return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        if (modal != null || scrollY == 0) return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        if (lockDropdownOpen) {
+            if (lockDropdownMaxScroll > 0) {
+                DropdownBox box = lockDropdownBox(lockOptions().size());
+                if (box != null && hit(mouseX, mouseY, box.x(), box.y(), box.width(), box.height())) {
+                    lockDropdownScroll = Math.clamp(lockDropdownScroll - scrollY * 19, 0, lockDropdownMaxScroll);
+                }
+            }
+            return true;
+        }
+        if (maxScroll <= 0) return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (hit(mouseX, mouseY, bodyLeft(), bodyTop(), bodyWidth(), Math.max(1, bodyBottom() - bodyTop()))) {
             scroll = Math.clamp(scroll - scrollY * 18, 0, maxScroll);
             return true;
@@ -491,9 +525,15 @@ public final class F3atherScreen extends Screen {
             if (nameBox != null && nameBox.keyPressed(key, scan, modifiers)) return true;
             return true;
         }
+        if (lockDropdownOpen && key == GLFW.GLFW_KEY_ESCAPE) {
+            closeLockDropdown();
+            return true;
+        }
         if (key == GLFW.GLFW_KEY_LEFT || key == GLFW.GLFW_KEY_RIGHT) {
             activePage = key == GLFW.GLFW_KEY_LEFT ? Page.GENERAL : Page.TABS;
             scroll = 0;
+            scrollbar.reset();
+            closeLockDropdown();
             return true;
         }
         return super.keyPressed(key, scan, modifiers);
@@ -535,8 +575,151 @@ public final class F3atherScreen extends Screen {
         return hz == 0 ? label("unlimited") : label("hz", hz);
     }
 
+    private void closeLockDropdown() {
+        lockDropdownOpen = false;
+        lockDropdownScroll = 0;
+        lockDropdownMaxScroll = 0;
+        dropdownScrollbar.reset();
+    }
+
+    private List<LockOption> lockOptions() {
+        OverlaySettings settings = ClientConfig.current();
+        var options = new ArrayList<LockOption>();
+        options.add(new LockOption("", label("unlocked").getString(), false));
+        for (BuiltIn tab : BuiltIn.values()) {
+            options.add(new LockOption(tab.id(), Component.translatable("f3ather.tab." + tab.id()).getString(),
+                    !settings.enabled().contains(tab)));
+        }
+        for (Tab tab : settings.customTabs()) {
+            options.add(new LockOption(tab.id(), tab.name(), !tab.enabled()));
+        }
+        return options;
+    }
+
+    private DropdownBox lockDropdownBox(int optionCount) {
+        if (activePage != Page.GENERAL) return null;
+        int bLeft = bodyLeft();
+        int bTop = bodyTop();
+        int bWidth = bodyWidth();
+        int bHeight = Math.max(1, bodyBottom() - bTop);
+        List<RowItem> items = buildItems();
+        int rowMaxScroll = Math.max(0, totalHeight(items) - bHeight);
+        int rowWidth = rowMaxScroll > 0 ? bWidth - 7 : bWidth;
+        int y = bTop - (int) Math.round(scroll);
+        for (RowItem item : items) {
+            if (item instanceof LockTabItem lockItem) {
+                int selW = lockItem.selectorWidth(rowWidth);
+                int selX = bLeft + rowWidth - 8 - selW;
+                int selY = y + (lockItem.height() - 20) / 2;
+                int menuW = Math.clamp(Math.max(selW, 132), 100, Math.max(100, width - 16));
+                int menuX = Math.clamp(selX + selW - menuW, 8, Math.max(8, width - 8 - menuW));
+                int contentH = optionCount * 19 + 8;
+                int belowSpace = height - (selY + 20 + 10);
+                int aboveSpace = selY - 10;
+                boolean openBelow = belowSpace >= Math.min(contentH, 100) || belowSpace >= aboveSpace;
+                int avail = Math.max(48, Math.min(openBelow ? belowSpace : aboveSpace, 168));
+                int menuH = Math.min(contentH, avail);
+                int menuY = openBelow ? selY + 23 : selY - 3 - menuH;
+                return new DropdownBox(selX, selY, selW, 20, menuX, menuY, menuW, menuH, contentH);
+            }
+            y += item.height() + item.gap();
+        }
+        return null;
+    }
+
+    private void renderLockDropdown(GuiGraphics graphics, int mouseX, int mouseY) {
+        List<LockOption> options = lockOptions();
+        DropdownBox box = lockDropdownBox(options.size());
+        if (box == null) {
+            closeLockDropdown();
+            return;
+        }
+        String current = ClientConfig.current().lockedTab();
+        lockDropdownMaxScroll = Math.max(0, box.contentHeight() - box.height());
+        lockDropdownScroll = Math.clamp(lockDropdownScroll, 0, lockDropdownMaxScroll);
+
+        drawFloatingPanel(graphics, box.x(), box.y(), box.width(), box.height(), MODAL_BG, MODAL_BORDER);
+        int itemLeft = box.x() + 4;
+        int itemWidth = box.width() - 8 - (lockDropdownMaxScroll > 0 ? 6 : 0);
+        int listTop = box.y() + 4;
+        int listHeight = box.height() - 8;
+
+        graphics.enableScissor(box.x() + 1, listTop, box.x() + box.width() - 1, listTop + listHeight);
+        int y = listTop - (int) Math.round(lockDropdownScroll);
+        String offTag = label("tab_disabled_hint").getString();
+        for (LockOption option : options) {
+            if (y + 19 > listTop && y < listTop + listHeight) {
+                boolean selected = option.id().equals(current);
+                boolean hovered = !dropdownScrollbar.isDragging() && hit(mouseX, mouseY, itemLeft, y, itemWidth, 19);
+                if (selected) {
+                    graphics.fill(itemLeft, y, itemLeft + itemWidth, y + 19, ACCENT_SOFT);
+                    graphics.fill(itemLeft, y + 3, itemLeft + 2, y + 16, ACCENT);
+                } else if (hovered) {
+                    graphics.fill(itemLeft, y, itemLeft + itemWidth, y + 19, ROW_HOVER);
+                }
+                int tagW = option.disabled() ? font.width(offTag) + 6 : 0;
+                String name = ellipsize(font, option.label(), Math.max(16, itemWidth - 12 - tagW));
+                int color = selected ? ACCENT : option.disabled() ? TEXT_MUTED : TEXT_PRIMARY;
+                graphics.drawString(font, name, itemLeft + 6, baseline(font, y, 19), color, false);
+                if (option.disabled()) {
+                    graphics.drawString(font, offTag, itemLeft + itemWidth - 5 - font.width(offTag),
+                            baseline(font, y, 19), TEXT_DISABLED, false);
+                }
+            }
+            y += 19;
+        }
+        graphics.disableScissor();
+
+        if (lockDropdownMaxScroll > 0) {
+            dropdownScrollbar.render(graphics, box.x() + box.width() - 5, listTop, listHeight,
+                    box.contentHeight(), (int) Math.round(lockDropdownScroll), mouseX, mouseY);
+        }
+    }
+
+    private boolean handleLockDropdownClick(double mouseX, double mouseY) {
+        List<LockOption> options = lockOptions();
+        DropdownBox box = lockDropdownBox(options.size());
+        if (box == null) {
+            closeLockDropdown();
+            return true;
+        }
+        if (hit(mouseX, mouseY, box.triggerX(), box.triggerY(), box.triggerW(), box.triggerH())) {
+            playClick();
+            closeLockDropdown();
+            return true;
+        }
+        if (!hit(mouseX, mouseY, box.x(), box.y(), box.width(), box.height())) {
+            closeLockDropdown();
+            return true;
+        }
+        int listTop = box.y() + 4;
+        int listHeight = box.height() - 8;
+        if (lockDropdownMaxScroll > 0) {
+            int nextScroll = dropdownScrollbar.mouseClicked(mouseX, mouseY, box.x() + box.width() - 5,
+                    listTop, listHeight, box.contentHeight(), lockDropdownScroll);
+            if (nextScroll >= 0) {
+                lockDropdownScroll = nextScroll;
+                return true;
+            }
+        }
+        int itemLeft = box.x() + 4;
+        int itemWidth = box.width() - 8 - (lockDropdownMaxScroll > 0 ? 6 : 0);
+        if (hit(mouseX, mouseY, itemLeft, listTop, itemWidth, listHeight)) {
+            int index = (int) Math.floor((mouseY - (listTop - lockDropdownScroll)) / 19.0);
+            if (index >= 0 && index < options.size()) {
+                playClick();
+                ClientConfig.save(ClientConfig.current().withLockedTab(options.get(index).id()));
+                closeLockDropdown();
+            }
+        }
+        return true;
+    }
+
     private enum Page { GENERAL, TABS }
 
+    private record LockOption(String id, String label, boolean disabled) {}
+    private record DropdownBox(int triggerX, int triggerY, int triggerW, int triggerH,
+                               int x, int y, int width, int height, int contentHeight) {}
     private record SegmentedLayout(int x, int y, int width, int height, int segWidth, int genX, int tabsX) {}
     private record ModalRect(int x, int y, int width, int height) {}
     private record NameModalLayout(int inputX, int inputY, int inputW, int inputH, int btnY,
@@ -629,6 +812,61 @@ public final class F3atherScreen extends Screen {
                 sx += segW;
             }
             return false;
+        }
+    }
+
+    private final class LockTabItem implements RowItem {
+        private final OverlaySettings settings;
+
+        LockTabItem(OverlaySettings settings) { this.settings = settings; }
+
+        @Override public int height() { return 34; }
+
+        int selectorWidth(int rowWidth) {
+            return Math.clamp(rowWidth / 3 + 12, 82, 126);
+        }
+
+        @Override
+        public void render(GuiGraphics graphics, int x, int y, int width, int mouseX, int mouseY) {
+            boolean rowHover = hit(mouseX, mouseY, x, y, width, height());
+            if (rowHover) graphics.fill(x, y, x + width, y + height(), ROW_HOVER);
+
+            int selW = selectorWidth(width);
+            int selH = 20;
+            int selX = x + width - 8 - selW;
+            int selY = y + (height() - selH) / 2;
+            int textMax = Math.max(20, selX - (x + 8) - 10);
+
+            graphics.drawString(font, ellipsize(font, label("lock_tab").getString(), textMax), x + 8, y + 7, TEXT_PRIMARY, false);
+            graphics.drawString(font, ellipsize(font, label("lock_tab.desc").getString(), textMax), x + 8, y + 19, TEXT_MUTED, false);
+
+            boolean locked = !settings.lockedTab().isEmpty();
+            boolean selHover = hit(mouseX, mouseY, selX, selY, selW, selH);
+            int fill = lockDropdownOpen || locked ? ACCENT_SOFT : selHover ? SUBTLE_FILL : TRACK_BG;
+            int border = lockDropdownOpen || locked ? ACCENT_BORDER : selHover ? 0x44ffffff : GLASS_BORDER;
+            graphics.fill(selX, selY, selX + selW, selY + selH, fill);
+            graphics.renderOutline(selX, selY, selW, selH, border);
+
+            String current = locked ? OverlayHud.title(settings, settings.lockedTab()).getString()
+                    : label("unlocked").getString();
+            String trimmed = ellipsize(font, current, Math.max(10, selW - 22));
+            int textColor = locked || lockDropdownOpen ? ACCENT : TEXT_PRIMARY;
+            graphics.drawString(font, trimmed, selX + 7, baseline(font, selY, selH), textColor, false);
+            drawIcon(graphics, Icon.CHEVRON_DOWN, selX + selW - 14, selY + (selH - 9) / 2,
+                    locked || lockDropdownOpen ? ACCENT : TEXT_MUTED);
+        }
+
+        @Override
+        public boolean click(int x, int y, int width, double mouseX, double mouseY) {
+            playClick();
+            if (lockDropdownOpen) {
+                closeLockDropdown();
+            } else {
+                lockDropdownOpen = true;
+                lockDropdownScroll = 0;
+                dropdownScrollbar.reset();
+            }
+            return true;
         }
     }
 

@@ -49,9 +49,9 @@ public final class HudLayout {
         static final Position EXPANDED = new Position(0, HEADER, HEADER);
         private static final Position HEADERLESS = new Position(0, 0, 0);
 
-        public static Position preview(boolean hideTabBar) { return hideTabBar ? HEADERLESS : EXPANDED; }
+        public static Position preview(boolean headerHidden) { return headerHidden ? HEADERLESS : EXPANDED; }
 
-        Position withHiddenTabBar(boolean hidden) {
+        Position withHeaderHidden(boolean hidden) {
             return hidden ? new Position(columnDistance, 0, 0) : this;
         }
 

@@ -51,6 +51,7 @@ public final class OverlayHud {
     public FastDebugText text() { return text; }
     public String activeTab() { return active; }
     public boolean modsDetected() { return modsDetected; }
+    public boolean isTabLocked(OverlaySettings settings) { return !settings.effectiveLockedTab(modsDetected).isEmpty(); }
     public boolean samplingEditor() { return samplingEditor; }
 
     public void invalidate() {
@@ -107,16 +108,25 @@ public final class OverlayHud {
 
     public void accept(AddonEntries.Column leftColumn, AddonEntries.Column rightColumn,
                        OverlaySettings settings, boolean preview) {
-        boolean selectTab = active == null || settings != lastSettings;
+        String lockedBefore = settings.effectiveLockedTab(modsDetected);
+        boolean selectTab = active == null || settings != lastSettings
+                || (!lockedBefore.isEmpty() && !lockedBefore.equals(active));
         latest = OverlayFrame.collect(addons, leftColumn, rightColumn, selectTab ? null : active, preview);
+        boolean hadMods = modsDetected;
         modsDetected |= latest.hasAddons();
-        if (!selectTab) return;
+        if (!selectTab && hadMods == modsDetected) return;
         lastSettings = settings;
+        String locked = settings.effectiveLockedTab(modsDetected);
+        if (!locked.isEmpty()) {
+            if (!locked.equals(active)) select(locked);
+            return;
+        }
         var tabs = settings.visibleTabs(modsDetected);
         if (active == null || !tabs.contains(active)) select(tabs.isEmpty() ? null : tabs.getFirst());
     }
 
     public void cycle(OverlaySettings settings) {
+        if (isTabLocked(settings)) return;
         String next = OverlaySettings.cycle(settings.visibleTabs(modsDetected), active);
         if (!Objects.equals(active, next)) select(next);
         motion.reveal(System.nanoTime(), settings.disableAnimations());
@@ -153,7 +163,8 @@ public final class OverlayHud {
     }
 
     public HudLayout.Position position(OverlaySettings settings, int width) {
-        return motion.position(System.nanoTime(), settings.disableAnimations(), width).withHiddenTabBar(settings.hideTabBar());
+        return motion.position(System.nanoTime(), settings.disableAnimations(), width)
+                .withHeaderHidden(isTabLocked(settings));
     }
 
     private void select(String id) {
@@ -258,7 +269,7 @@ public final class OverlayHud {
             presented = null;
             return;
         }
-        position = position.withHiddenTabBar(settings.hideTabBar());
+        position = position.withHeaderHidden(isTabLocked(settings));
         drawPresentedHeader(graphics, presented, position);
         var rows = presented.rows();
         if (BuiltIn.VANILLA.id().equals(presented.tab())) {

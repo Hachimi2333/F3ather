@@ -25,7 +25,7 @@ final class ClientConfigTest {
         config.set("refreshHz", 0);
         config.set("compatibility", true);
         config.set("disableAnimations", true);
-        config.set("hideTabBar", true);
+        config.set("lockedTab", "performance");
         var format = TomlFormat.instance();
         var restored = format.createParser().parse(format.createWriter().writeToString(config));
 
@@ -36,7 +36,7 @@ final class ClientConfigTest {
         assertEquals(0, restored.<Integer>get("refreshHz"));
         assertEquals(true, restored.get("compatibility"));
         assertEquals(true, restored.get("disableAnimations"));
-        assertEquals(true, restored.get("hideTabBar"));
+        assertEquals("performance", restored.get("lockedTab"));
     }
 
     @Test
@@ -44,20 +44,29 @@ final class ClientConfigTest {
         var config = TomlFormat.newConfig();
         ClientConfig.SPEC.correct(config);
         config.remove("disableAnimations");
-        config.remove("hideTabBar");
+        config.remove("lockedTab");
         config.set("refreshHz", 30);
         config.set("builtIn.world", false);
         ClientConfig.SPEC.correct(config);
 
         assertEquals(false, config.get("disableAnimations"));
-        assertEquals(false, config.get("hideTabBar"));
-        assertFalse(OverlaySettings.DEFAULT.hideTabBar());
+        assertEquals("", config.get("lockedTab"));
+        assertEquals("", OverlaySettings.DEFAULT.lockedTab());
         assertEquals(10, config.<Integer>get("refreshHz"));
         assertEquals(false, config.get("builtIn.world"));
         assertTrue(OverlaySettings.DEFAULT.withDisableAnimations(true).withRefresh(20)
                 .withBuiltIn(BuiltIn.WORLD, false).withCompatibility(true).disableAnimations());
-        assertTrue(OverlaySettings.DEFAULT.withHideTabBar(true).withRefresh(20)
-                .withBuiltIn(BuiltIn.WORLD, false).withCompatibility(true).hideTabBar());
+        var lockedWorld = OverlaySettings.DEFAULT.withBuiltIn(BuiltIn.WORLD, false).withLockedTab("world");
+        assertEquals("world", lockedWorld.lockedTab());
+        assertTrue(lockedWorld.enabled().contains(BuiltIn.WORLD));
+        assertEquals("", lockedWorld.withBuiltIn(BuiltIn.WORLD, false).lockedTab());
+
+        var custom = Tab.create("Custom").toggle(false);
+        var lockedCustom = OverlaySettings.DEFAULT.withTab(custom).withLockedTab(custom.id());
+        assertEquals(custom.id(), lockedCustom.lockedTab());
+        assertTrue(lockedCustom.customTab(custom.id()).enabled());
+        assertEquals("", lockedCustom.withTab(custom).lockedTab());
+        assertEquals("", lockedCustom.withoutTab(custom.id()).lockedTab());
     }
 
     @Test

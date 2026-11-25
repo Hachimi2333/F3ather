@@ -26,7 +26,7 @@ public final class ClientConfig {
     private static final ModConfigSpec.ConfigValue<Integer> REFRESH;
     private static final ModConfigSpec.BooleanValue COMPATIBILITY;
     private static final ModConfigSpec.BooleanValue DISABLE_ANIMATIONS;
-    private static final ModConfigSpec.BooleanValue HIDE_TAB_BAR;
+    private static final ModConfigSpec.ConfigValue<String> LOCKED_TAB;
     private static final EnumMap<BuiltIn, ModConfigSpec.BooleanValue> BUILT_INS = new EnumMap<>(BuiltIn.class);
     private static final ModConfigSpec.ConfigValue<List<? extends String>> CUSTOM;
     private static volatile OverlaySettings current = OverlaySettings.DEFAULT;
@@ -38,7 +38,8 @@ public final class ClientConfig {
                         value -> value instanceof Integer hz && OverlaySettings.REFRESH_PRESETS.contains(hz));
         COMPATIBILITY = builder.define("compatibility", false);
         DISABLE_ANIMATIONS = builder.define("disableAnimations", OverlaySettings.DEFAULT.disableAnimations());
-        HIDE_TAB_BAR = builder.define("hideTabBar", OverlaySettings.DEFAULT.hideTabBar());
+        LOCKED_TAB = builder.comment("Optional tab id to lock F3 onto a single tab and disable the tab bar.")
+                .define("lockedTab", OverlaySettings.DEFAULT.lockedTab(), value -> value instanceof String);
         builder.push("builtIn");
         for (BuiltIn tab : BuiltIn.values()) BUILT_INS.put(tab, builder.define(tab.id(), true));
         builder.pop();
@@ -61,7 +62,7 @@ public final class ClientConfig {
             Tab tab = decodeTab(encoded);
             if (tab != null && ids.add(tab.id())) tabs.add(tab);
         }
-        current = new OverlaySettings(REFRESH.get(), COMPATIBILITY.get(), DISABLE_ANIMATIONS.get(), HIDE_TAB_BAR.get(),
+        current = new OverlaySettings(REFRESH.get(), COMPATIBILITY.get(), DISABLE_ANIMATIONS.get(), LOCKED_TAB.get(),
                 enabled, tabs);
     }
 
@@ -70,7 +71,7 @@ public final class ClientConfig {
         REFRESH.set(settings.refreshHz());
         COMPATIBILITY.set(settings.compatibility());
         DISABLE_ANIMATIONS.set(settings.disableAnimations());
-        HIDE_TAB_BAR.set(settings.hideTabBar());
+        LOCKED_TAB.set(settings.lockedTab());
         BUILT_INS.forEach((tab, value) -> value.set(settings.enabled().contains(tab)));
         CUSTOM.set(settings.customTabs().stream().map(ClientConfig::encodeTab).toList());
         SPEC.save();
