@@ -14,7 +14,7 @@
   "f3ather.screen.hz": "%s Hz",
   "f3ather.screen.unlimited": "Unlimited",
   "f3ather.screen.lock_tab": "Lock tab",
-  "f3ather.screen.lock_tab.desc": "Show only one selected tab and disable top bar",
+  "f3ather.screen.lock_tab.desc": "Lock onto one tab and hide the top bar",
   "f3ather.screen.unlocked": "Unlocked",
   "f3ather.screen.tab_disabled_hint": "Off",
   "f3ather.screen.compatibility": "Compatibility mode",

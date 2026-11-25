@@ -823,7 +823,7 @@ public final class F3atherScreen extends Screen {
         @Override public int height() { return 34; }
 
         int selectorWidth(int rowWidth) {
-            return Math.clamp(rowWidth / 3 + 12, 82, 126);
+            return Math.clamp(rowWidth / 3, 76, 114);
         }
 
         @Override
