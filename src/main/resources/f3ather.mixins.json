@@ -3,7 +3,7 @@
   "minVersion": "0.8",
   "package": "top.hachimi2333.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": ["DebugScreenOverlayMixin", "KeyboardHandlerMixin"],
+  "client": ["DebugScreenOverlayMixin", "KeyboardHandlerMixin", "FontManagerMixin"],
   "injectors": {
     "defaultRequire": 1
   }

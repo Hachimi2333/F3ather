@@ -89,6 +89,19 @@ final class FixtureChecks {
     }
 
     static void verifyShortcuts(Minecraft mc) {
+        var unicode = mc.options.forceUnicodeFont();
+        boolean initial = unicode.get();
+        String sample = "iiiiiiiiiiiiii";
+        F3ather.HUD.text().width(mc.font, sample, 0xe0e0e0);
+        try {
+            unicode.set(!initial);
+            if (F3ather.HUD.text().width(mc.font, sample, 0xe0e0e0) != mc.font.width(sample)) {
+                throw new IllegalStateException("Cached width did not follow the font option");
+            }
+        } finally {
+            unicode.set(initial);
+        }
+
         var configured = ClientConfig.current();
         pressDebugChord(mc, GLFW.GLFW_KEY_0);
         requireSettings(mc);
