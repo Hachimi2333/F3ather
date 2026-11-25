@@ -11,13 +11,13 @@
 ## GitHub Release Template
 
 - Use `v<version>` for the tag, `F3ather v<version>` for the release title, and `f3ather-neoforge-<minecraftVersion>-<version>.jar` for the release asset. Match the asset name to the Gradle build output.
-- Write the release notes in English. Keep the section order below and base the highlights on user-facing changes since the previous release.
+- Write the release notes in English. Keep the section order below and base the opening summary and highlights on user-facing changes since the previous release.
 - Verify the installation requirements and bundled dependencies against the current build before writing the installation paragraph.
 
 ```markdown
 # F3ather v<version>
 
-<One short paragraph describing F3ather and its main features.>
+<One short paragraph summarizing the most important changes in this release.>
 
 ## Highlights
 
