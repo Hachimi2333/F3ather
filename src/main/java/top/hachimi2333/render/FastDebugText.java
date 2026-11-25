@@ -21,19 +21,25 @@ public final class FastDebugText {
     private static final int STRIDE = 5;
     private final RunCache cache = new RunCache();
     private Font currentFont;
+    private String lastText;
+    private int lastColor;
+    private Entry lastEntry;
 
     public void clear() {
         cache.clear();
         currentFont = null;
+        lastText = null;
+        lastEntry = null;
     }
 
     public int width(Font font, String text, int color) {
-        return cacheable(font, text) ? entry(font, text, color).width : font.width(text);
+        Entry entry = entry(font, text, color);
+        return entry != null ? entry.width : font.width(text);
     }
 
     public int draw(GuiGraphics graphics, Font font, String text, int x, int y, int color) {
-        if (!cacheable(font, text)) return graphics.drawString(font, text, x, y, color, false);
         Entry entry = entry(font, text, color);
+        if (entry == null) return graphics.drawString(font, text, x, y, color, false);
         if (!entry.drawn || entry.useVanilla) {
             entry.drawn = true;
             return graphics.drawString(font, text, x, y, color, false);
@@ -62,7 +68,13 @@ public final class FastDebugText {
             clear();
             currentFont = font;
         }
-        return cache.entry(text, color, () -> font.width(text));
+        // renderLines measures a row immediately before drawing that same String.
+        if (lastText == text && lastColor == color) return lastEntry;
+        if (!cacheable(font, text)) return null;
+        lastEntry = cache.entry(text, color, () -> font.width(text));
+        lastText = text;
+        lastColor = color;
+        return lastEntry;
     }
 
     static final class RunCache extends LinkedHashMap<Key, Entry> {
@@ -97,10 +109,14 @@ public final class FastDebugText {
 
     private record Span(RenderType type, int start) {}
 
-    private record Run(float[] geometry, int[] colors, List<Span> spans) {
+    private record Run(float[] geometry, int[] colors, List<Span> spans, float minY, float maxY) {
         void draw(GuiGraphics graphics, int x, int y) {
             Matrix4f pose = graphics.pose().last().pose();
             boolean translation = (pose.properties() & Matrix4fc.PROPERTY_TRANSLATION) != 0;
+            if (translation) {
+                float originY = y + pose.m31();
+                if (originY + minY >= graphics.guiHeight() || originY + maxY < 0) return;
+            }
             var buffers = graphics.bufferSource();
             for (int i = 0; i < spans.size(); i++) {
                 Span span = spans.get(i);
@@ -125,6 +141,8 @@ public final class FastDebugText {
         private float[] geometry = new float[64 * STRIDE];
         private int[] colors = new int[64];
         private int size;
+        private float minY = Float.POSITIVE_INFINITY;
+        private float maxY = Float.NEGATIVE_INFINITY;
 
         VertexConsumer buffer(RenderType type) {
             if (spans.isEmpty() || spans.getLast().type() != type) spans.add(new Span(type, size));
@@ -132,7 +150,7 @@ public final class FastDebugText {
         }
 
         Run finish() {
-            return new Run(Arrays.copyOf(geometry, size * STRIDE), Arrays.copyOf(colors, size), List.copyOf(spans));
+            return new Run(Arrays.copyOf(geometry, size * STRIDE), Arrays.copyOf(colors, size), List.copyOf(spans), minY, maxY);
         }
 
         @Override
@@ -141,6 +159,8 @@ public final class FastDebugText {
                 colors = Arrays.copyOf(colors, size * 2);
                 geometry = Arrays.copyOf(geometry, size * 2 * STRIDE);
             }
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
             int at = size++ * STRIDE;
             geometry[at] = x;
             geometry[at + 1] = y;

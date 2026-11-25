@@ -40,6 +40,31 @@ final class OverlayBehaviorTest {
     }
 
     @Test
+    void sharedReplacementKeepsBothSlotsAndSurvivesReordering() {
+        var rows = new Column(true, List.of(new Row("fps", "60"), new Row("biome", "Plains")), null);
+        rows.replaceAll(ignored -> "Hidden");
+        Collections.swap(rows, 0, 1);
+        rows.set(0, "First after swap");
+        var groups = new LinkedHashMap<String, List<String>>();
+        new AddonEntries().collect(rows, groups, new ArrayList<>());
+        assertEquals(List.of("First after swap"), groups.get("biome"));
+        assertEquals(List.of("Hidden"), groups.get("fps"));
+    }
+
+    @Test
+    void listAddResolvesTheListenerWithoutWalkingPastABridge() {
+        var caller = new AtomicReference<Class<?>>();
+        List<String> rows = new Column(true, List.of(), type -> {
+            caller.set(type);
+            return AddonEntries.UNKNOWN;
+        });
+        rows.add("First");
+        assertEquals(getClass(), caller.get());
+        rows.add(0, "Second");
+        assertEquals(getClass(), caller.get());
+    }
+
+    @Test
     void duplicatesFromDifferentModsStayIndependent() {
         var active = new AtomicReference<>(new Source("one", "First"));
         var rows = new Column(true, List.of(), caller -> active.get());
@@ -70,6 +95,27 @@ final class OverlayBehaviorTest {
         addons.collect(rows, new LinkedHashMap<>(), appended);
         assertTrue(addons.entries().size() <= 514);
         assertEquals(rows, appended);
+    }
+
+    @Test
+    void vanillaSkipsGroupingButDiscoversRowsAndEditorCanReadTheNextFrame() {
+        var addons = new AddonEntries();
+        var owner = new Source("example", "Example");
+        var left = new Column(true, List.of(new Row("vanilla:fps", "60 fps")), caller -> owner);
+        var right = new Column(false, List.of(), caller -> owner);
+        right.addAll(List.of("Status: A", "Status: B"));
+        var vanilla = OverlayFrame.collect(addons, left, right, BuiltIn.VANILLA.id(), false);
+        assertTrue(vanilla.hasAddons());
+        assertTrue(vanilla.groups().isEmpty());
+        assertTrue(vanilla.rightAddons().isEmpty());
+        assertEquals(2, addons.entries().size());
+        right.removeFirst();
+        var preview = OverlayFrame.collect(addons, left, right, BuiltIn.VANILLA.id(), true);
+        assertEquals(List.of("60 fps"), preview.groups().get("vanilla:fps"));
+        assertEquals(List.of("Status: B"), preview.groups().get("addon:right:example:Status:1"));
+        assertFalse(preview.groups().containsKey("addon:right:example:Status:2"));
+        var mods = OverlayFrame.collect(addons, left, right, BuiltIn.MODS.id(), false);
+        assertEquals(List.of("Status: B"), mods.rightAddons());
     }
 
     @Test

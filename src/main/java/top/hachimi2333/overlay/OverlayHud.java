@@ -14,13 +14,9 @@ import top.hachimi2333.overlay.OverlaySettings.Tab;
 import top.hachimi2333.render.FastDebugText;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static top.hachimi2333.overlay.VanillaEntry.*;
 
 public final class OverlayHud {
     private static final ResourceLocation LOGO = ResourceLocation.fromNamespaceAndPath("f3ather", "textures/gui/logo.png");
@@ -43,10 +39,11 @@ public final class OverlayHud {
     private int chartFlags;
     private boolean modsDetected;
     private boolean samplingEditor;
+    private OverlaySettings lastSettings;
     private String active;
     private int page;
     private int pageCount = 1;
-    private Frame latest = Frame.EMPTY;
+    private OverlayFrame latest = OverlayFrame.EMPTY;
     private PresentedFrame presented;
 
     public OverlayHud(AddonEntries addons) { this.addons = addons; }
@@ -58,7 +55,7 @@ public final class OverlayHud {
 
     public void invalidate() {
         clock.invalidate();
-        latest = Frame.EMPTY;
+        latest = OverlayFrame.EMPTY;
     }
 
     public void resetWorld() {
@@ -105,13 +102,16 @@ public final class OverlayHud {
     }
 
     public void accept(AddonEntries.Column leftColumn, AddonEntries.Column rightColumn, OverlaySettings settings) {
-        var grouped = new HashMap<String, List<String>>();
-        var leftAddons = new ArrayList<String>();
-        var rightAddons = new ArrayList<String>();
-        boolean foundLeft = addons.collect(leftColumn, grouped, leftAddons);
-        boolean foundRight = addons.collect(rightColumn, grouped, rightAddons);
-        modsDetected |= foundLeft || foundRight;
-        latest = new Frame(grouped, leftAddons, rightAddons);
+        accept(leftColumn, rightColumn, settings, true);
+    }
+
+    public void accept(AddonEntries.Column leftColumn, AddonEntries.Column rightColumn,
+                       OverlaySettings settings, boolean preview) {
+        boolean selectTab = active == null || settings != lastSettings;
+        latest = OverlayFrame.collect(addons, leftColumn, rightColumn, selectTab ? null : active, preview);
+        modsDetected |= latest.hasAddons();
+        if (!selectTab) return;
+        lastSettings = settings;
         var tabs = settings.visibleTabs(modsDetected);
         if (active == null || !tabs.contains(active)) select(tabs.isEmpty() ? null : tabs.getFirst());
     }
@@ -123,7 +123,7 @@ public final class OverlayHud {
     }
 
     public boolean supportsPages() {
-        return active != null && (active.equals(BuiltIn.MODS.id()) || !isBuiltIn(active));
+        return active != null && (active.equals(BuiltIn.MODS.id()) || !BuiltIn.containsId(active));
     }
 
     public void advancePage(int direction, OverlaySettings settings) {
@@ -160,11 +160,6 @@ public final class OverlayHud {
         active = id;
         page = 0;
         pageCount = 1;
-    }
-
-    private static boolean isBuiltIn(String id) {
-        for (BuiltIn tab : BuiltIn.values()) if (tab.id().equals(id)) return true;
-        return false;
     }
 
     public static Component title(OverlaySettings settings, String id) {
@@ -223,20 +218,26 @@ public final class OverlayHud {
     }
 
     public void drawSelected(GuiGraphics graphics, OverlaySettings settings, HudLayout.Position position) {
-        var rows = selectedRows(settings);
+        var rows = latest.rows(active, settings);
         int top = position.layoutHeader();
         var bottoms = bottoms(graphics.guiHeight(), top);
-        boolean custom = active != null && !isBuiltIn(active);
+        boolean custom = active != null && !BuiltIn.containsId(active);
         pageCount = supportsPages()
                 ? HudLayout.pageCount(graphics.guiWidth(), top, bottoms.left(), bottoms.right(), rows, custom) : 1;
         page = Math.min(page, pageCount - 1);
-        presented = new PresentedFrame(settings, active, rows, page, pageCount, custom);
-        drawPresentedHeader(graphics, presented, position);
+        var frame = new PresentedFrame(settings, active, rows, page, pageCount, custom);
+        presented = settings.disableAnimations() ? null : frame;
+        drawPresentedHeader(graphics, frame, position);
         drawRows(graphics, rows, position, bottoms, page, custom);
     }
 
     public void presentVanilla(GuiGraphics graphics, OverlaySettings settings, HudLayout.Position position,
                                List<String> leftLines, List<String> rightLines) {
+        if (settings.disableAnimations()) {
+            presented = null;
+            if (position.headerHeight() != 0) drawHeader(graphics, settings, active, position.headerY(), null);
+            return;
+        }
         var rows = Map.<Region, List<String>>of(Region.TOP_LEFT, new ArrayList<>(leftLines),
                 Region.TOP_RIGHT, new ArrayList<>(rightLines));
         presented = new PresentedFrame(settings, BuiltIn.VANILLA.id(), rows, 0, 1, false);
@@ -280,27 +281,6 @@ public final class OverlayHud {
             drawHeader(graphics, frame.settings(), frame.tab(), position.headerY(), frame.pages() == 1 ? null
                     : Component.translatable("f3ather.hud.page", frame.page() + 1, frame.pages()).getString());
         }
-    }
-
-    private Map<Region, List<String>> selectedRows(OverlaySettings settings) {
-        if (active == null) return Map.of();
-        if (active.equals(BuiltIn.SIMPLE.id())) {
-            return Map.of(Region.TOP_LEFT, join(latest, FPS, XYZ, BLOCK_POSITION, CHUNK_RELATIVE, FACING, BIOME));
-        }
-        if (active.equals(BuiltIn.PERFORMANCE.id())) {
-            return Map.of(Region.TOP_LEFT, join(latest, FPS, SERVER, RENDERED_CHUNKS, RENDERED_ENTITIES),
-                    Region.TOP_RIGHT, join(latest, MEMORY, CPU, DISPLAY, GPU));
-        }
-        if (active.equals(BuiltIn.WORLD.id())) {
-            return Map.of(Region.TOP_LEFT, join(latest, DIMENSION, XYZ, BLOCK_POSITION, CHUNK_POSITION,
-                            CHUNK_RELATIVE, FACING, LIGHT_LEVEL, HEIGHTMAPS, BIOME, DIFFICULTY, SPAWNING),
-                    Region.TOP_RIGHT, join(latest, TARGET_BLOCK, TARGET_FLUID, TARGET_ENTITY));
-        }
-        if (active.equals(BuiltIn.MODS.id())) {
-            return Map.of(Region.TOP_LEFT, latest.leftAddons(), Region.TOP_RIGHT, latest.rightAddons());
-        }
-        Tab tab = settings.customTab(active);
-        return tab == null ? Map.of() : customRows(tab, latest);
     }
 
     public void updateEditorPreview(Minecraft mc, GuiGraphics graphics) {
@@ -381,25 +361,6 @@ public final class OverlayHud {
             int x = left ? leftEdge + 2 : rightEdge - 2 - text.width(font, line, TEXT);
             text.draw(graphics, font, line, x, start + index * HudLayout.ROW_HEIGHT, TEXT);
         }
-    }
-
-    private static Map<Region, List<String>> customRows(Tab tab, Frame frame) {
-        var rows = new EnumMap<Region, List<String>>(Region.class);
-        for (Region area : Region.values()) {
-            rows.put(area, tab.entries(area).stream()
-                    .flatMap(id -> frame.groups().getOrDefault(id, List.of()).stream()).toList());
-        }
-        return rows;
-    }
-
-    private static List<String> join(Frame frame, VanillaEntry... entries) {
-        var result = new ArrayList<String>();
-        for (VanillaEntry entry : entries) result.addAll(frame.groups().getOrDefault(entry.id(), List.of()));
-        return result;
-    }
-
-    private record Frame(Map<String, List<String>> groups, List<String> leftAddons, List<String> rightAddons) {
-        private static final Frame EMPTY = new Frame(Map.of(), List.of(), List.of());
     }
 
     private record PresentedFrame(OverlaySettings settings, String tab, Map<Region, List<String>> rows,

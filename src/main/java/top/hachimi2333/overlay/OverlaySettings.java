@@ -1,6 +1,7 @@
 package top.hachimi2333.overlay;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public record OverlaySettings(int refreshHz, boolean compatibility, boolean disableAnimations, boolean hideTabBar,
                               Set<BuiltIn> enabled, List<Tab> customTabs) {
@@ -87,7 +89,14 @@ public record OverlaySettings(int refreshHz, boolean compatibility, boolean disa
     public enum BuiltIn {
         SIMPLE, PERFORMANCE, WORLD, MODS, VANILLA;
 
-        public String id() { return name().toLowerCase(java.util.Locale.ROOT); }
+        private final String id = name().toLowerCase(java.util.Locale.ROOT);
+
+        public String id() { return id; }
+
+        private static final Set<String> IDS = Arrays.stream(values()).map(BuiltIn::id)
+                .collect(Collectors.toUnmodifiableSet());
+
+        static boolean containsId(String id) { return id != null && IDS.contains(id); }
     }
 
     public enum Region {

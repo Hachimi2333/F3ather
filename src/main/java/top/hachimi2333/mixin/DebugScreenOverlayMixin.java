@@ -208,7 +208,7 @@ abstract class DebugScreenOverlayMixin {
             return;
         }
         if (left) {
-            F3ather.HUD.accept(f3ather$left, f3ather$right, f3ather$settings);
+            F3ather.HUD.accept(f3ather$left, f3ather$right, f3ather$settings, f3ather$preview);
             f3ather$originalRows = BuiltIn.VANILLA.id().equals(F3ather.HUD.activeTab());
         }
         if (f3ather$preview) return;

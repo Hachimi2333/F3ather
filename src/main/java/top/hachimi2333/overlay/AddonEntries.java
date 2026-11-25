@@ -22,6 +22,8 @@ public final class AddonEntries {
     static final Source UNKNOWN = new Source("", "");
 
     private final Map<String, Entry> entries = new LinkedHashMap<>();
+    private final Map<Label, Occurrences> catalog = new HashMap<>();
+    private long columnNumber;
     private Map<String, Source> sources;
     private final ClassValue<Source> directSources = new ClassValue<>() {
         @Override
@@ -66,46 +68,75 @@ public final class AddonEntries {
         return new Column(left, rows, this::findSource);
     }
 
-    private Entry discover(boolean left, Map<String, Integer> occurrences, Source source, String text) {
-        String side = left ? "left:" : "right:";
-        String label = findLabel(text);
-        String name = label == null ? "" : label;
-        String prefix = "addon:" + side;
-        String owner = source.id().isEmpty() ? "unknown" : source.id();
-        String slot = prefix + owner + ":" + name;
-        int occurrence = occurrences.merge(slot, 1, Integer::sum);
-        String id = slot + ":" + occurrence;
-        if (!entries.containsKey(id) && entries.size() >= LIMIT) {
-            id = prefix + "overflow";
-            source = UNKNOWN;
-            name = "";
+    private record Label(boolean left, String owner, String name) {}
+
+    private static final class Occurrences {
+        final List<Entry> entries = new ArrayList<>(1);
+        long column;
+        int count;
+
+        int next(long currentColumn) {
+            if (column != currentColumn) {
+                column = currentColumn;
+                count = 0;
+            }
+            return count++;
         }
-        Entry previous = entries.get(id);
-        if (previous != null) return previous;
+    }
+
+    private Entry discover(boolean left, Source source, String text) {
+        String name = findLabel(text);
+        String owner = source.id().isEmpty() ? "unknown" : source.id();
+        var label = new Label(left, owner, name);
+        var occurrences = catalog.get(label);
+        if (occurrences == null && entries.size() < LIMIT) {
+            occurrences = new Occurrences();
+            catalog.put(label, occurrences);
+        }
+        if (occurrences != null) {
+            int index = occurrences.next(columnNumber);
+            if (index < occurrences.entries.size()) return occurrences.entries.get(index);
+            if (entries.size() < LIMIT) {
+                String id = (left ? "addon:left:" : "addon:right:") + owner + ":" + name + ":" + (index + 1);
+                var entry = createEntry(id, source, name, text);
+                occurrences.entries.add(entry);
+                return entry;
+            }
+        }
+        String overflow = left ? "addon:left:overflow" : "addon:right:overflow";
+        Entry existing = entries.get(overflow);
+        return existing == null ? createEntry(overflow, UNKNOWN, "", text) : existing;
+    }
+
+    private Entry createEntry(String id, Source source, String name, String text) {
         String example = stripFormatting(text);
         if (example.length() > 150) example = example.substring(0, 150);
-        Entry entry = new Entry(id, source, name, example);
+        var entry = new Entry(id, source, name, example);
         entries.put(id, entry);
         return entry;
     }
 
     public boolean collect(Column column, Map<String, List<String>> grouped, List<String> appended) {
-        Map<String, Integer> occurrences = new HashMap<>();
+        return collect(column, grouped, appended, true);
+    }
+
+    boolean collect(Column column, Map<String, List<String>> grouped, List<String> appended, boolean groupAddons) {
+        columnNumber++;
         boolean detected = false;
         for (String text : column) {
             if (text == null) continue;
             Row base = column.original.get(text);
             if (base != null) {
-                if (base.id() != null && !text.isEmpty()) {
+                if (grouped != null && base.id() != null && !text.isEmpty()) {
                     grouped.computeIfAbsent(base.id(), ignored -> new ArrayList<>()).add(text);
                 }
                 continue;
             }
-            appended.add(text);
+            if (appended != null) appended.add(text);
             if (text.isBlank()) continue;
             detected = true;
-            Entry entry = discover(column.left, occurrences, column.added.getOrDefault(text, UNKNOWN), text);
-            grouped.computeIfAbsent(entry.id(), ignored -> new ArrayList<>()).add(text);
+            Entry entry = discover(column.left, column.added.getOrDefault(text, UNKNOWN), text);
+            if (groupAddons) grouped.computeIfAbsent(entry.id(), ignored -> new ArrayList<>()).add(text);
         }
         return detected;
     }
@@ -118,10 +149,10 @@ public final class AddonEntries {
             if (c == '：' || ((c == ':' || c == '=') && index + 1 < plain.length()
                     && Character.isWhitespace(plain.charAt(index + 1)))) {
                 String label = plain.substring(0, index).strip();
-                return !label.isEmpty() && Character.isLetter(label.codePointAt(0)) ? label : null;
+                return !label.isEmpty() && Character.isLetter(label.codePointAt(0)) ? label : "";
             }
         }
-        return null;
+        return "";
     }
 
     public static String stripFormatting(String text) {
@@ -144,7 +175,23 @@ public final class AddonEntries {
         public String title() { return name.isEmpty() ? sample : name; }
     }
 
-    public static final class Column extends AbstractList<String> implements RandomAccess {
+    // Capture the listener at List.add(Object), before a String-specific bridge adds a stack frame.
+    private abstract static class EventList<T> extends AbstractList<T> implements RandomAccess {
+        @Override
+        public final boolean add(T value) {
+            insert(size(), value, WALKER.getCallerClass());
+            return true;
+        }
+
+        @Override
+        public final void add(int index, T value) {
+            insert(index, value, WALKER.getCallerClass());
+        }
+
+        abstract void insert(int index, T value, Class<?> caller);
+    }
+
+    public static final class Column extends EventList<String> {
         private final boolean left;
         private final List<String> lines;
         private final Map<String, Row> original = new IdentityHashMap<>();
@@ -174,8 +221,10 @@ public final class AddonEntries {
 
         @Override
         public String set(int index, String value) {
-            String old = lines.set(index, value);
+            String old = lines.get(index);
             if (value != null && !original.containsKey(value) && !added.containsKey(value)) {
+                // Repeated replacements with one literal must keep distinct row identities.
+                value = new String(value);
                 Row row = original.get(old);
                 if (row != null) original.put(value, row);
                 else if (source != null) {
@@ -183,27 +232,17 @@ public final class AddonEntries {
                     added.put(value, owner == null ? resolve(WALKER.getCallerClass()) : owner);
                 }
             }
-            return old;
+            return lines.set(index, value);
         }
 
         @Override
-        public void add(int index, String value) {
-            insert(index, value, source == null ? null : WALKER.getCallerClass());
-        }
-
-        @Override
-        public boolean add(String value) {
-            insert(lines.size(), value, source == null ? null : WALKER.getCallerClass());
-            return true;
-        }
-
-        private void insert(int index, String value, Class<?> caller) {
+        void insert(int index, String value, Class<?> caller) {
             if ((added.containsKey(value) || original.containsKey(value)) && containsIdentity(value)) {
                 value = new String(value);
             }
             lines.add(index, value);
             modCount++;
-            if (caller != null) record(value, () -> resolve(caller));
+            if (source != null) record(value, () -> resolve(caller));
         }
 
         @Override
