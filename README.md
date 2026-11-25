@@ -18,7 +18,7 @@
 - Create custom tabs with searchable debug entries and a drag-and-drop preview for all four screen corners.
 - Keep Minecraft's font, per-line backgrounds, debug charts, and server-enforced reduced debug information. F3ather caches glyph drawing instructions and samples debug data at a configurable rate.
 - Choose **1 Hz**, **5 Hz**, **10 Hz**, **20 Hz**, or **Unlimited**. The default is 10 Hz, while Unlimited samples every frame.
-- Let the tab bar auto-hide after four seconds or hide it permanently. Settings also include an animation toggle and a Compatibility Mode that restores vanilla F3 behavior.
+- Let the tab bar auto-hide after four seconds, or lock F3 onto a single selected tab to hide the tab bar and disable `Tab` cycling. Settings also include an animation toggle and a Compatibility Mode that restores vanilla F3 behavior.
 
 ## Installation
 
@@ -32,7 +32,7 @@ F3ather runs on the client with **Minecraft 1.21.1**, **NeoForge 21.1.172 or lat
 | Shortcut | Action |
 | --- | --- |
 | `F3` | Open or close the debug overlay |
-| `Tab` while F3 is open | Switch to the next enabled tab, including when the tab bar is hidden |
+| `Tab` while F3 is open | Switch to the next enabled tab (disabled while Lock tab is active) |
 | `F3 + Page Up` / `F3 + Page Down` | Change pages on long Mods or custom tabs |
 | `F3 + 1` / `F3 + 2` / `F3 + 3` | Toggle the native debug charts |
 | `F3 + 0` | Open F3ather settings |
@@ -72,7 +72,7 @@ For the multiplayer fixture, start the loopback host first. Once it is ready, la
 ./gradlew runFixtureClient -PfixtureServer=127.0.0.1:25578
 ```
 
-When checking in game on both NeoForge versions, cover F3 animations and chart shortcuts, the hidden tab bar, settings in both languages and at different GUI scales, editor input and drag-and-drop, and the Mods tab with and without Sodium.
+When checking in game on both NeoForge versions, cover F3 animations and chart shortcuts, tab locking, settings in both languages and at different GUI scales, editor input and drag-and-drop, and the Mods tab with and without Sodium.
 
 ## Contributing
 
