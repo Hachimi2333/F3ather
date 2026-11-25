@@ -65,7 +65,7 @@ Windows 下用 `.\gradlew.bat` 替换 `./gradlew`。成品 JAR 位于 `build/lib
 ./gradlew runFixtureClient -PfixtureBaseline -PfixtureAuto
 ```
 
-两个测试模组会在调试文字采集流程的不同阶段追加和修改文字。自动模式将采样与耗时写入测试实例的 `logs/latest.log`，可搜索 `F3ATHER_MEASUREMENT`。视觉检查会保存 HUD、设置和标签编辑器的截图。
+两个测试模组会在调试文字采集流程的不同阶段追加和修改文字。自动模式将采样与耗时写入测试实例的 `logs/latest.log`，可搜索 `F3ATHER_MEASUREMENT`。用 `hud_p50_ms` 和 `hud_p95_ms` 对照无 F3ather 基线、原版标签、兼容模式和默认精简标签的 HUD 耗时。单列探针测量原版行绘制方法，精简标签的单列结果为 `NaN`。视觉检查会保存 HUD、设置和标签编辑器的截图。
 
 多人测试需先启动本机回环服务器，等服务器就绪后，再从另一个终端启动访客端。
 

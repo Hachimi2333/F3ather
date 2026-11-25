@@ -141,11 +141,17 @@ public final class FixtureClient {
             finish(!f3ather ? "neoforge" : switch (measurement) {
                 case 0 -> "vanilla-tab-10hz";
                 case 1 -> "vanilla-tab-live";
-                default -> "compatibility";
+                case 2 -> "compatibility";
+                default -> "default-simple-10hz";
             });
-            if (f3ather && auto && measurement < 2) {
+            if (f3ather && auto && measurement < 3) {
                 measurement++;
-                FixtureChecks.measure(measurement == 2, 0);
+                if (measurement == 3) {
+                    FixtureChecks.enableAll();
+                    FixtureChecks.selectTab(mc, "simple");
+                } else {
+                    FixtureChecks.measure(measurement == 2, 0);
+                }
                 reset();
                 return;
             }

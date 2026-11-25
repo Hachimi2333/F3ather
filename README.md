@@ -65,7 +65,7 @@ The build verifies the bundled OpenUI MC 0.0.16 checksum. Gradle and Maven Centr
 ./gradlew runFixtureClient -PfixtureBaseline -PfixtureAuto
 ```
 
-The two fixture mods add and edit text at different points in the collection pipeline. Automatic runs log sampling and timing through `F3ATHER_MEASUREMENT` in the fixture instance's `logs/latest.log`. Visual runs save screenshots of the HUD, settings, and editor.
+The two fixture mods add and edit text at different points in the collection pipeline. Automatic runs log sampling and timing through `F3ATHER_MEASUREMENT` in the fixture instance's `logs/latest.log`. Compare `hud_p50_ms` and `hud_p95_ms` across the baseline, Vanilla tab, compatibility mode, and default Simple tab. The per-column probe covers Minecraft's original row renderer, so its result is `NaN` for Simple. Visual runs save screenshots of the HUD, settings, and editor.
 
 For the multiplayer fixture, start the loopback host first. Once it is ready, launch the guest in a separate terminal.
 
