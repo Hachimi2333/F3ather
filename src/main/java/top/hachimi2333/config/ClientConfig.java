@@ -99,10 +99,11 @@ public final class ClientConfig {
             String name = value.get("name").getAsString().strip();
             if (name.isEmpty() || name.length() > 40) return null;
             var regions = new EnumMap<Region, List<String>>(Region.class);
-            var storedRegions = value.getAsJsonObject("regions");
+            if (!(value.get("regions") instanceof JsonObject storedRegions)) return null;
             for (Region region : Region.values()) {
-                var stored = storedRegions.getAsJsonArray(region.name().toLowerCase(Locale.ROOT));
-                if (stored == null) continue;
+                var field = storedRegions.get(region.name().toLowerCase(Locale.ROOT));
+                if (field == null) continue;
+                if (!(field instanceof JsonArray stored)) return null;
                 var entries = new ArrayList<String>();
                 for (var item : stored) {
                     if (!item.isJsonPrimitive() || !item.getAsJsonPrimitive().isString()) continue;

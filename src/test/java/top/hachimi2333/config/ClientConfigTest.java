@@ -76,6 +76,9 @@ final class ClientConfigTest {
 
     @Test
     void incompleteOrInvalidTabsAreSkipped() {
+        String valid = ClientConfig.encodeTab(Tab.create("Test"));
+        assertNull(ClientConfig.decodeTab(valid.replace("\"top_left\":[]", "\"top_left\":\"vanilla:fps\"")));
+        assertNull(ClientConfig.decodeTab(valid.replace("\"regions\":{", "\"regions\":false,\"unused\":{")));
         assertNull(ClientConfig.decodeTab("{}"));
         assertNull(ClientConfig.decodeTab("invalid"));
         assertNull(ClientConfig.decodeTab("{\"id\":\"" + Tab.create("Test").id() + "\",\"name\":{}}"));
